@@ -1,3 +1,9 @@
+const INR_FORMATTER = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 0,
+});
+
 function ProjectSummary({ project, onReset }) {
   return (
     <div className="bg-gray-800/50 border border-gray-700/50 rounded-2xl shadow-sm h-126 flex-col overflow-hidden">
@@ -45,7 +51,7 @@ function ProjectSummary({ project, onReset }) {
             <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2.5">
               <span className="text-[10px] text-gray-400 uppercase tracking-wider">Budget</span>
               <span className="text-sm font-bold text-emerald-400">
-                ₹{Number(project.budget).toLocaleString("en-IN")}
+                {INR_FORMATTER.format(Number(project.budget))}
               </span>
             </div>
           )}

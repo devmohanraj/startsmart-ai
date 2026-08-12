@@ -6,7 +6,9 @@ import com.startsmart.ai.riskanalyzer.entity.Project;
 import com.startsmart.ai.riskanalyzer.entity.User;
 import com.startsmart.ai.riskanalyzer.repository.CompetitorAnalysisRepository;
 import com.startsmart.ai.riskanalyzer.repository.MarketAnalysisRepository;
+import com.startsmart.ai.riskanalyzer.repository.PredictionRepository;
 import com.startsmart.ai.riskanalyzer.repository.ProjectRepository;
+import com.startsmart.ai.riskanalyzer.repository.SwotAnalysisRepository;
 import com.startsmart.ai.riskanalyzer.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,8 @@ public class ProjectService {
     private final UserRepository userRepository;
     private final MarketAnalysisRepository marketAnalysisRepository;
     private final CompetitorAnalysisRepository competitorAnalysisRepository;
+    private final PredictionRepository predictionRepository;
+    private final SwotAnalysisRepository swotAnalysisRepository;
 
     public ProjectResponseDTO createProject(ProjectRequestDTO dto, Long userId) {
         User user = userRepository.findById(userId)
@@ -76,6 +80,8 @@ public class ProjectService {
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + projectId));
         
         // Delete related records first to avoid foreign key constraint violation
+        predictionRepository.deleteByProjectProjectId(projectId);
+        swotAnalysisRepository.deleteByProjectProjectId(projectId);
         marketAnalysisRepository.deleteByProjectProjectId(projectId);
         competitorAnalysisRepository.deleteByProjectProjectId(projectId);
         

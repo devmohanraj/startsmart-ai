@@ -4,10 +4,10 @@ import Navbar from './components/Navbar';
 import ProjectForm from './components/ProjectForm';
 import AboutPanel from './components/AboutPanel';
 import MarketAnalysisPanel from './components/MarketAnalysisPanel';
+import ProjectAnalysis from './components/ProjectAnalysis';
 import AuthModal from './components/AuthModal';
 import MyProjects from './components/MyProjects';
 import RiskAssessment from './components/RiskAssessment';
-import Recommendations from './components/Recommendations';
 import Dashboard from './components/Dashboard';
 import './index.css';
 
@@ -76,6 +76,12 @@ function App() {
 
   const handleMyProjects = () => {
     setActiveTab('My Projects');
+    setSubmittedProject(null);
+    setIsAnalyzing(false);
+  };
+
+  const handleSelectProjectForView = (project) => {
+    setSubmittedProject(project);
   };
 
   const fetchUserProjects = async (userId) => {
@@ -95,7 +101,7 @@ function App() {
 
   const handleSelectProject = (project) => {
     setSubmittedProject(project);
-    setActiveTab('Project Input');
+    setActiveTab('Project Analysis');
   };
 
   const handleDeleteProject = async (projectId) => {
@@ -125,6 +131,12 @@ function App() {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === 'Project Input') setSubmittedProject(null);
+  };
+
+  const handleHome = () => {
+    setActiveTab('Project Input');
+    setSubmittedProject(null);
+    setIsAnalyzing(false);
   };
 
   const renderContent = () => {
@@ -171,6 +183,19 @@ function App() {
             )}
           </div>
         );
+      case 'Project Analysis':
+        return (
+          <ProjectAnalysis
+            project={submittedProject}
+            projects={userProjects}
+            isLoggedIn={!!user}
+            onSelectProject={handleSelectProjectForView}
+            onLoginClick={() => handleOpenAuth('login')}
+            onAnalysisComplete={handleAnalysisComplete}
+            onCacheAnalysis={handleCacheAnalysis}
+            onReset={handleReset}
+          />
+        );
       case 'My Projects':
         return (
           <MyProjects
@@ -182,9 +207,16 @@ function App() {
           />
         );
       case 'Risk Assessment':
-        return <RiskAssessment />;
-      case 'Recommendations':
-        return <Recommendations />;
+        return (
+          <RiskAssessment
+            project={submittedProject}
+            projects={userProjects}
+            isLoggedIn={!!user}
+            onSelectProject={handleSelectProjectForView}
+            onLoginClick={() => handleOpenAuth('login')}
+            onReset={handleReset}
+          />
+        );
       case 'Dashboard':
         return <Dashboard />;
       default:
@@ -197,6 +229,7 @@ function App() {
       <Navbar
         activeTab={activeTab}
         onTabChange={handleTabChange}
+        onHome={handleHome}
         user={user}
         onLoginClick={() => handleOpenAuth('login')}
         onMyProjects={handleMyProjects}

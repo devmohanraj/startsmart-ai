@@ -2,12 +2,12 @@ import { useState, useRef, useEffect } from "react";
 
 const TABS = [
   "Project Input",
+  "Project Analysis",
   "Risk Assessment",
-  "Recommendations",
   "Dashboard",
 ];
 
-function Navbar({ activeTab, onTabChange, user, onLoginClick, onMyProjects, onLogout }) {
+function Navbar({ activeTab, onTabChange, onHome, user, onLoginClick, onMyProjects, onLogout }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -39,7 +39,7 @@ function Navbar({ activeTab, onTabChange, user, onLoginClick, onMyProjects, onLo
     <nav className="sticky top-0 z-50 bg-gray-900/90 backdrop-blur-md border-b border-gray-800">
       <div className="max-w-345 mx-auto flex items-center justify-between gap-4 px-4 sm:px-6 h-16">
         <button
-          onClick={() => onTabChange("Project Input")}
+          onClick={onHome}
           className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity cursor-pointer"
         >
           <div className="w-8 h-8 sm:w-9.5 sm:h-9.5 rounded-lg bg-indigo-500 flex items-center justify-center shadow-sm">

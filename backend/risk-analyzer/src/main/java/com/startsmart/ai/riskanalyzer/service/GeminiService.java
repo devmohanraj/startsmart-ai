@@ -100,7 +100,7 @@ public class GeminiService {
     }
 
     @SuppressWarnings("unchecked")
-    private String callGemini(String prompt) {
+    public String callGemini(String prompt) {
         Map<String, Object> requestBody = Map.of(
                 "contents", List.of(Map.of(
                         "parts", List.of(Map.of("text", prompt)))));
