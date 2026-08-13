@@ -345,7 +345,7 @@ function ScrollHint() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-40 pointer-events-none animate-[fadeIn_0.4s_ease]">
+    <div className="fixed bottom-13 left-1/2 -translate-x-1/2 z-40 pointer-events-none animate-[fadeIn_0.4s_ease]">
       <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-gray-900/90 border border-indigo-500/30 text-indigo-300 text-sm font-medium backdrop-blur-sm shadow-lg">
         <span>Scroll down to explore more</span>
         <svg className="w-4 h-4 text-indigo-400 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -372,10 +372,12 @@ function RiskAssessment({
   const [loading, setLoading] = useState(() => !riskAssessmentCache[projectId]);
   const [error, setError] = useState("");
   const [isPolling, setIsPolling] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const needsGeneration = !riskAssessmentCache[projectId];
-  const showPopup = needsGeneration && loading;
+  // Popup only shows while the ML + Gemini generation (POST) is running —
+  // never while merely fetching an already-generated assessment from the DB (GET).
+  const showPopup = isGenerating;
 
   const urlFor = useCallback(
     (id) => `${import.meta.env.VITE_API_URL}/api/projects/${id}/risk-analysis`,
@@ -414,6 +416,7 @@ function RiskAssessment({
         if (cancelled) return;
         if (err.message === "NOT_FOUND") {
           // Fresh ML + Gemini generation is running — the popup stays visible
+          setIsGenerating(true);
           fetchAssessment(projectId, "POST")
             .then((generated) => {
               if (!cancelled) {
@@ -429,6 +432,9 @@ function RiskAssessment({
               if (/Request failed with status (500|502|503)/.test(postErr.message)) {
                 setIsPolling(true);
               }
+            })
+            .finally(() => {
+              if (!cancelled) setIsGenerating(false);
             });
         } else {
           setError(err.message);
