@@ -1,12 +1,3 @@
-"""
-train.py
-StartSmart AI — Risk Prediction Model
-Steps 5-7: Train Logistic Regression baseline, train XGBoost, evaluate both
-
-Usage:
-    python train.py
-"""
-
 from data import load_and_prepare_data
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler

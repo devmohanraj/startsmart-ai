@@ -1,18 +1,3 @@
-"""
-diagnose_budget_distribution.py
-StartSmart AI — Diagnostic
-Checks how much training data exists near a given budget level, and what
-the ACTUAL historical success rate was for companies in that range.
-
-This tells us whether the model's extreme prediction is:
-  (a) an honest reflection of real historical data (few/no low-budget
-      successes existed), or
-  (b) a symptom of the model over-extrapolating on very sparse data
-
-Usage:
-    python diagnose_budget_distribution.py
-"""
-
 from data import load_and_prepare_data
 import pandas as pd
 import numpy as np

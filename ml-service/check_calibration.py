@@ -1,15 +1,3 @@
-"""
-check_calibration.py
-StartSmart AI — Diagnostic
-Checks whether the model's predicted probabilities match REAL observed
-success rates in the test set. This tells us honestly whether the model
-is overconfident (needs calibration) or already accurate (calibration
-would just make it less precise).
-
-Usage:
-    python check_calibration.py
-"""
-
 from data import load_and_prepare_data
 from xgboost import XGBClassifier
 import numpy as np

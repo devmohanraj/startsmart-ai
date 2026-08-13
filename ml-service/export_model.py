@@ -1,17 +1,3 @@
-"""
-export_model.py
-StartSmart AI — Risk Prediction Model
-Step 9: Train final model and export artifacts for FastAPI serving
-
-Produces:
-    risk_model.pkl        — trained XGBoost model
-    model_columns.json    — exact feature column order the model expects
-    valid_categories.json — valid primary_category values for encoding
-
-Usage:
-    python export_model.py
-"""
-
 from data import load_and_prepare_data
 from xgboost import XGBClassifier
 import joblib

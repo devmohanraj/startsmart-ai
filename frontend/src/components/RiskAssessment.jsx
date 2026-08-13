@@ -138,7 +138,7 @@ function impactMeta(contribution) {
 }
 
 function Skeleton({ className = "" }) {
-  return <div className={`bg-gray-700 rounded-xl animate-pulse ${className}`} />;
+  return <div className={`bg-gray-700 rounded-lg animate-pulse ${className}`} />;
 }
 
 // Circular progress gauge
@@ -363,15 +363,19 @@ function RiskAssessment({
   onSelectProject,
   onLoginClick,
   onReset,
+  riskAssessmentCache = {},
+  onAssessmentLoaded,
 }) {
   const [selected, setSelected] = useState(project || null);
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const projectId = selected?.projectId;
+  const [data, setData] = useState(() => (projectId ? riskAssessmentCache[projectId] : null));
+  const [loading, setLoading] = useState(() => !riskAssessmentCache[projectId]);
   const [error, setError] = useState("");
   const [isPolling, setIsPolling] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const projectId = selected?.projectId;
+  const needsGeneration = !riskAssessmentCache[projectId];
+  const showPopup = needsGeneration && loading;
 
   const urlFor = useCallback(
     (id) => `${import.meta.env.VITE_API_URL}/api/projects/${id}/risk-analysis`,
@@ -394,6 +398,7 @@ function RiskAssessment({
   // Load cached assessment, or generate a fresh one when none exists
   useEffect(() => {
     if (!projectId) return;
+    if (riskAssessmentCache[projectId]) return;
     let cancelled = false;
 
     fetchAssessment(projectId, "GET")
@@ -402,16 +407,19 @@ function RiskAssessment({
           setData(cached);
           setError("");
           setLoading(false);
+          onAssessmentLoaded?.(projectId, cached);
         }
       })
       .catch((err) => {
         if (cancelled) return;
         if (err.message === "NOT_FOUND") {
+          // Fresh ML + Gemini generation is running — the popup stays visible
           fetchAssessment(projectId, "POST")
             .then((generated) => {
               if (!cancelled) {
                 setData(generated);
                 setLoading(false);
+                onAssessmentLoaded?.(projectId, generated);
               }
             })
             .catch((postErr) => {
@@ -431,7 +439,7 @@ function RiskAssessment({
     return () => {
       cancelled = true;
     };
-  }, [projectId, reloadKey, fetchAssessment]);
+  }, [projectId, reloadKey, fetchAssessment, riskAssessmentCache, onAssessmentLoaded]);
 
   // Poll while a server-side generation is being retried
   useEffect(() => {
@@ -486,7 +494,35 @@ function RiskAssessment({
   }
 
   // ---------------------------------------------------------------
-  // Empty / selector state
+  // Empty state — no projects yet (matches Project Analysis design)
+  // ---------------------------------------------------------------
+  if (!projectId && (!projects || projects.length === 0)) {
+    return (
+      <div className="max-w-345 mx-auto px-4 sm:px-6 py-8">
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold text-white tracking-tight">Risk Assessment</h2>
+          <p className="text-sm text-gray-300 mt-1">
+            AI-powered risk scoring, feasibility, and strategic assessment for your project.
+          </p>
+        </div>
+        <div className="text-center py-12 bg-gray-800/50 border border-gray-700/50 rounded-2xl">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto mb-4">
+            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+            </svg>
+          </div>
+          <p className="text-sm text-gray-300 max-w-md mx-auto">
+            You have no projects yet. Submit a project from the{" "}
+            <span className="text-indigo-400 font-medium">Project Input</span>{" "}
+            tab first.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------
+  // Selector state — projects exist but none selected
   // ---------------------------------------------------------------
   if (!projectId) {
     return (
@@ -498,8 +534,8 @@ function RiskAssessment({
           projects={projects}
           onSelect={(picked) => {
             setSelected(picked);
-            setData(null);
-            setLoading(true);
+            setData(riskAssessmentCache[picked.projectId] || null);
+            setLoading(!riskAssessmentCache[picked.projectId]);
             setError("");
             if (onSelectProject) onSelectProject(picked);
           }}
@@ -509,28 +545,46 @@ function RiskAssessment({
   }
 
   // ---------------------------------------------------------------
-  // Loading state
+  // Loading state (matches Project Analysis loading UI)
   // ---------------------------------------------------------------
   if (loading && !data) {
     return (
-      <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-345 mx-auto">
-          <Skeleton className="h-8 w-64 mb-6" />
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-3 space-y-6">
-              <Skeleton className="h-96" />
-              <Skeleton className="h-64" />
+      <>
+        <div className="max-w-345 mx-auto px-4 sm:px-6 py-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 md:gap-6 items-stretch lg:h-[calc(100vh-6rem)]">
+            <div className="md:col-span-1 lg:col-span-6 flex flex-col gap-4 h-full">
+              <Skeleton className="h-6 w-40" />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3">
+                <Skeleton className="h-20" />
+                <Skeleton className="h-20" />
+                <Skeleton className="h-20" />
+              </div>
+              <Skeleton className="flex-1" />
             </div>
-            <div className="lg:col-span-6">
-              <Skeleton className="h-[30rem]" />
+            <div className="md:col-span-1 lg:col-span-3 flex flex-col gap-4 h-full">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="flex-1" />
             </div>
-            <div className="lg:col-span-3 space-y-6">
-              <Skeleton className="h-56" />
-              <Skeleton className="h-64" />
+            <div className="md:col-span-1 lg:col-span-3 flex flex-col gap-4 h-full">
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="flex-1" />
             </div>
           </div>
         </div>
-      </div>
+
+        {/* Fresh ML + Gemini generation popup — same as Project Analysis */}
+        {showPopup && (
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 flex flex-col items-center gap-4">
+              <svg className="w-12 h-12 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <p className="text-sm font-medium text-gray-300">Generating Risk Assessment...</p>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 

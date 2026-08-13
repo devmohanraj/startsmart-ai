@@ -1,36 +1,3 @@
-"""
-main.py  (v3 — log-transformed budget)
-StartSmart AI — ML Prediction Microservice
-Step 10: FastAPI /predict endpoint
-
-CHANGE FROM v2:
-Incoming budget is now log-transformed with the SAME log1p transformation
-used in training (data.py), so the live model input matches what it was
-trained on. Without this, a raw dollar figure fed into a model trained on
-log-transformed values would be wildly out of scale and produce erratic,
-overly extreme predictions — this was the root cause of unrealistically
-low success-probability scores at low budget levels.
-
-INPUTS  (from the real submission form):
-    budget_inr : float   — Budget field, in INR
-    industry   : string  — Industry/Sector dropdown value
-    is_india   : int     — defaults to 1 (platform is India-focused)
-
-OUTPUTS (consumed by the Risk Assessment dashboard):
-    success_probability : float (%)
-    overall_risk_score  : float (0-100)
-    risk_level           : "Low" | "Medium" | "High"
-    top_risk_factors     : list of {feature, contribution, direction}
-    confidence_note       : string | null — flags predictions at the
-                             extreme edges of the model's training range
-
-Run locally:
-    uvicorn main:app --reload --port 8000
-
-Docs:
-    http://127.0.0.1:8000/docs
-"""
-
 import json
 import joblib
 import numpy as np

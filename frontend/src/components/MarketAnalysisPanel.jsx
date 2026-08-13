@@ -167,13 +167,20 @@ function MarketAnalysisPanel({
   onAnalysisComplete,
   project,
   onReset,
+  cachedData,
+  onCacheAnalysis,
 }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(cachedData || null);
+  const [loading, setLoading] = useState(!cachedData);
   const [error, setError] = useState("");
   const [isPolling, setIsPolling] = useState(false);
 
   useEffect(() => {
+    if (cachedData) {
+      if (onAnalysisComplete) onAnalysisComplete();
+      return;
+    }
+
     let cancelled = false;
 
     fetch(`${import.meta.env.VITE_API_URL}/api/projects/${projectId}/market-analysis`, {
@@ -193,6 +200,7 @@ function MarketAnalysisPanel({
           setData(json);
           setLoading(false);
           if (onAnalysisComplete) onAnalysisComplete();
+          if (onCacheAnalysis) onCacheAnalysis(projectId, json);
         }
       })
       .catch(async (err) => {
@@ -215,6 +223,7 @@ function MarketAnalysisPanel({
               setData(json);
               setLoading(false);
               if (onAnalysisComplete) onAnalysisComplete();
+              if (onCacheAnalysis) onCacheAnalysis(projectId, json);
             }
           } catch (postErr) {
             if (!cancelled) {
@@ -233,7 +242,7 @@ function MarketAnalysisPanel({
     return () => {
       cancelled = true;
     };
-  }, [projectId, onAnalysisComplete]);
+  }, [projectId, onAnalysisComplete, cachedData, onCacheAnalysis]);
 
   useEffect(() => {
     if (!error || !isPolling) return;
@@ -258,6 +267,7 @@ function MarketAnalysisPanel({
           setError("");
           setIsPolling(false);
           setLoading(false);
+          if (onCacheAnalysis) onCacheAnalysis(projectId, json);
         })
         .catch((err) => {
           console.log("Polling...", err.message);
@@ -265,7 +275,7 @@ function MarketAnalysisPanel({
     }, 3000);
 
     return () => clearInterval(pollInterval);
-  }, [error, isPolling, projectId]);
+  }, [error, isPolling, projectId, onCacheAnalysis]);
 
   const startPolling = () => {
     setIsPolling(true);
@@ -288,7 +298,10 @@ function MarketAnalysisPanel({
         }
         return res.json();
       })
-      .then((json) => setData(json))
+      .then((json) => {
+        setData(json);
+        if (onCacheAnalysis) onCacheAnalysis(projectId, json);
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   };

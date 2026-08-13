@@ -1,12 +1,3 @@
-"""
-shap_analysis.py
-StartSmart AI — Risk Prediction Model
-Step 8: SHAP feature importance (feeds the "Top Risk Factors" output)
-
-Usage:
-    python shap_analysis.py
-"""
-
 from data import load_and_prepare_data
 from xgboost import XGBClassifier
 import shap

@@ -24,13 +24,43 @@ function App() {
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [deletingProjectId, setDeletingProjectId] = useState(null);
 
-  const [analysisCache, setAnalysisCache] = useState({});
+  const [analysisCache, setAnalysisCache] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("startsmart_market_analyses")) || {};
+    } catch {
+      return {};
+    }
+  });
   const [showRiskIndicator, setShowRiskIndicator] = useState(false);
+  const [riskAssessmentCache, setRiskAssessmentCache] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("startsmart_risk_assessments")) || {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("startsmart_risk_assessments", JSON.stringify(riskAssessmentCache));
+    } catch {
+      // ignore quota / serialization errors
+    }
+  }, [riskAssessmentCache]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("startsmart_market_analyses", JSON.stringify(analysisCache));
+    } catch {
+      // ignore quota / serialization errors
+    }
+  }, [analysisCache]);
 
   const handleProjectSubmit = (project) => {
     setSubmittedProject(project);
     setIsAnalyzing(true);
     setShowRiskIndicator(true);
+    setActiveTab('Project Analysis');
     setUserProjects((prev) => {
       if (prev.some((p) => p.projectId === project.projectId)) return prev;
       return [project, ...prev];
@@ -52,7 +82,16 @@ function App() {
   }, []);
 
   const handleCacheAnalysis = useCallback((projectId, data) => {
+    if (!projectId || !data) return;
     setAnalysisCache((prev) => ({ ...prev, [projectId]: data }));
+  }, []);
+
+  const handleAssessmentLoaded = useCallback((projectId, data) => {
+    if (!projectId || !data) return;
+    setRiskAssessmentCache((prev) => {
+      if (prev[projectId]) return prev;
+      return { ...prev, [projectId]: data };
+    });
   }, []);
 
   const handleOpenAuth = (mode = 'login') => {
@@ -177,17 +216,6 @@ function App() {
                 </div>
               </div>
             )}
-            {isAnalyzing && submittedProject && (
-              <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
-                <div className="bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 flex flex-col items-center gap-4">
-                  <svg className="w-12 h-12 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  <p className="text-sm font-medium text-gray-300">Analyzing Market & Competitors...</p>
-                </div>
-              </div>
-            )}
           </div>
         );
       case 'Project Analysis':
@@ -201,6 +229,7 @@ function App() {
             onAnalysisComplete={handleAnalysisComplete}
             onCacheAnalysis={handleCacheAnalysis}
             onReset={handleReset}
+            analysisCache={analysisCache}
           />
         );
       case 'My Projects':
@@ -222,6 +251,8 @@ function App() {
             onSelectProject={handleSelectProjectForView}
             onLoginClick={() => handleOpenAuth('login')}
             onReset={handleReset}
+            riskAssessmentCache={riskAssessmentCache}
+            onAssessmentLoaded={handleAssessmentLoaded}
           />
         );
       case 'Dashboard':
@@ -246,6 +277,19 @@ function App() {
       <main className="flex-1 animate-[fadeIn_0.4s_ease]">
         {renderContent()}
       </main>
+
+      {/* Analyzing overlay */}
+      {isAnalyzing && submittedProject && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 flex flex-col items-center gap-4">
+            <svg className="w-12 h-12 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <p className="text-sm font-medium text-gray-300">Analyzing Market & Competitors...</p>
+          </div>
+        </div>
+      )}
 
       {/* Auth Modal */}
       <AuthModal

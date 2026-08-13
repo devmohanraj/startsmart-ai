@@ -1,40 +1,9 @@
-"""
-data.py  (v3 — log-transformed budget)
-StartSmart AI — Risk Prediction Model
-Steps 1-4: Load data, define target, engineer features, train/test split
-
-CHANGE FROM v2:
-funding_total_usd is now log-transformed (log1p) before being used as a
-model feature. Raw dollar amounts are heavily right-skewed (a few
-companies raised hundreds of millions, most raised far less), which made
-the model extremely sensitive at low budget values — small differences
-between low budgets produced wildly swinging, unrealistically extreme
-risk scores. Log-transforming compresses this skew so the model reasons
-in proportional terms (10x more funding) rather than raw absolute gaps,
-which is standard practice for monetary features and produces much more
-stable, realistic predictions across the full budget range.
-
-MODEL SCOPE (unchanged):
-Inputs used  : funding_total_usd_log, primary_category, is_india
-              (maps to form fields: Budget, Industry/Sector, is_india=1 default)
-Target       : success (1 = acquired/ipo, 0 = closed)
-
-Usage:
-    from data import load_and_prepare_data
-    X_train, X_test, y_train, y_test, w_train, w_test = load_and_prepare_data("data.csv")
-"""
-
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 
 
 def load_and_prepare_data(csv_path: str = "data.csv", test_size: float = 0.2, random_state: int = 42):
-    """
-    Loads the Crunchbase startup dataset, cleans it, engineers the
-    form-aligned feature set (with log-transformed budget), and returns
-    a stratified train/test split.
-    """
 
     # ---------------------------------------------------------
     # STEP 1: Load raw data

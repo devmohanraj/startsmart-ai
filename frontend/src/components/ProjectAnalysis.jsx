@@ -13,6 +13,7 @@ function ProjectAnalysis({
   onAnalysisComplete,
   onCacheAnalysis,
   onReset,
+  analysisCache = {},
 }) {
   const [selected, setSelected] = useState(project || null);
   const [prevProjectId, setPrevProjectId] = useState(project?.projectId ?? null);
@@ -90,6 +91,7 @@ function ProjectAnalysis({
           project={selected}
           onAnalysisComplete={onAnalysisComplete}
           onCacheAnalysis={onCacheAnalysis}
+          cachedData={analysisCache[selected.projectId]}
           onReset={onReset}
         />
       ) : projects.length > 0 ? (
