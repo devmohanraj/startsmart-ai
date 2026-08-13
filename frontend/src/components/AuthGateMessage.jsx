@@ -2,7 +2,7 @@ function AuthGateMessage({ title, description, onLoginClick }) {
   return (
     <div className="flex-1 flex items-center justify-center py-12 px-4">
       <div className="text-center max-w-md">
-        <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center mx-auto mb-5">
+        <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto mb-5">
           <svg
             className="w-8 h-8 text-indigo-400"
             fill="none"
@@ -13,7 +13,7 @@ function AuthGateMessage({ title, description, onLoginClick }) {
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              d="M12 7.5v3.75m0 0c-.694.355-1.5.943-2.25 1.75m-3.75 4.5a7.5 7.5 0 0114.25-4.5M12 11.25v7.5"
+              d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
             />
           </svg>
         </div>

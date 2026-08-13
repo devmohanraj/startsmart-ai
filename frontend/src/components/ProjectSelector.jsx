@@ -24,7 +24,7 @@ function ProjectSelector({
             if (picked && onChange) onChange(picked);
           }}
           disabled={projects.length === 0}
-          className="h-10 pl-3 pr-9 text-sm bg-gray-800 border border-gray-700 rounded-lg text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed appearance-none"
+          className="h-10 pl-3 pr-9 text-sm bg-gray-800 border border-gray-700 rounded-lg text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed appearance-none max-w-[60vw] sm:max-w-xs truncate"
         >
           {projects.length === 0 ? (
             <option value="">{placeholder}</option>

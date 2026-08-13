@@ -86,7 +86,7 @@ function AuthModal({ isOpen, onClose, initialMode = "login", onAuthSuccess }) {
 
       {/* Modal */}
       <div
-        className="relative bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-8 animate-[fadeIn_0.2s_ease]"
+        className="relative bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-5 sm:p-8 max-h-[90dvh] overflow-y-auto animate-[fadeIn_0.2s_ease]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}

@@ -90,7 +90,7 @@ function ProjectForm({ onSuccess, isLoggedIn, onRequireAuth, userId }) {
   };
 
   return (
-    <div className="bg-gray-800/50 border border-gray-700/50 rounded-2xl shadow-sm p-8">
+    <div className="bg-gray-800/50 border border-gray-700/50 rounded-2xl shadow-sm p-5 sm:p-8">
       <div className="mb-9">
         <h1 className="text-2xl font-semibold text-white tracking-tight">
           Submit your project

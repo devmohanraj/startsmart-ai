@@ -323,6 +323,39 @@ function SwotBlock({ title, icon, items = [], tone }) {
   );
 }
 
+function ScrollHint() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const doc = document.documentElement;
+      const hasMore = doc.scrollHeight > window.innerHeight + 40;
+      const atBottom = window.innerHeight + window.scrollY >= doc.scrollHeight - 80;
+      setVisible(hasMore && !atBottom);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-40 pointer-events-none animate-[fadeIn_0.4s_ease]">
+      <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-gray-900/90 border border-indigo-500/30 text-indigo-300 text-sm font-medium backdrop-blur-sm shadow-lg">
+        <span>Scroll down to explore more</span>
+        <svg className="w-4 h-4 text-indigo-400 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 13.5L12 21m0 0l-7.5-7.5M12 21V3" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 function RiskAssessment({
   project,
   projects = [],
@@ -337,7 +370,6 @@ function RiskAssessment({
   const [error, setError] = useState("");
   const [isPolling, setIsPolling] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [showAllFactors, setShowAllFactors] = useState(false);
 
   const projectId = selected?.projectId;
 
@@ -368,7 +400,6 @@ function RiskAssessment({
       .then((cached) => {
         if (!cancelled) {
           setData(cached);
-          setShowAllFactors(false);
           setError("");
           setLoading(false);
         }
@@ -380,7 +411,6 @@ function RiskAssessment({
             .then((generated) => {
               if (!cancelled) {
                 setData(generated);
-                setShowAllFactors(false);
                 setLoading(false);
               }
             })
@@ -411,7 +441,6 @@ function RiskAssessment({
       fetchAssessment(projectId, "GET")
         .then((json) => {
           setData(json);
-          setShowAllFactors(false);
           setError("");
           setIsPolling(false);
         })
@@ -470,7 +499,6 @@ function RiskAssessment({
           onSelect={(picked) => {
             setSelected(picked);
             setData(null);
-            setShowAllFactors(false);
             setLoading(true);
             setError("");
             if (onSelectProject) onSelectProject(picked);
@@ -539,10 +567,10 @@ function RiskAssessment({
   }
 
   return (
-    <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen py-6 px-4 sm:px-6 lg:px-8">
       <div className="max-w-345 mx-auto">
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">Risk Assessment</h1>
             <p className="mt-1 text-sm text-gray-400">
@@ -561,7 +589,6 @@ function RiskAssessment({
                 onChange={(picked) => {
                   setSelected(picked);
                   setData(null);
-                  setShowAllFactors(false);
                   setLoading(true);
                   setError("");
                   if (onSelectProject) onSelectProject(picked);
@@ -579,7 +606,6 @@ function RiskAssessment({
               onClick={() => {
                 setSelected(null);
                 setData(null);
-                setShowAllFactors(false);
                 setLoading(true);
                 setError("");
                 if (onReset) onReset();
@@ -591,13 +617,14 @@ function RiskAssessment({
           </div>
         </div>
 
-        {/* 3-column dashboard */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* LEFT - Risk summary */}
-          <div className="lg:col-span-3 flex flex-col gap-6 h-full">
-            <Card className="flex-1 flex flex-col overflow-hidden">
+        {/* Dashboard - ROW 1 / ROW 2 / ROW 3 / ROW 4 */}
+        <div className="flex flex-col gap-5">
+          {/* ROW 1 - 4 equal-height cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.07fr_1fr_1fr_0.88fr] gap-5">
+            {/* Risk Score */}
+            <Card className="overflow-hidden">
               <CardHeader title="Risk Score" icon={<RiskIcon />} />
-              <div className="flex-1 px-5 py-6 flex flex-col items-center justify-center text-center">
+              <div className="px-5 py-5 flex flex-col items-center justify-center text-center">
                 <RingGauge value={overall} size={150} stroke={12} color={riskTheme.ring} subLabel="/100" />
                 <span className={`mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${riskTheme.badge}`}>
                   <span className={`w-2 h-2 rounded-full ${riskTheme.dot}`} />
@@ -622,79 +649,116 @@ function RiskAssessment({
               </div>
             </Card>
 
-            {/* Risk by Category - below Risk Score */}
-            <Card className="flex-1 flex flex-col overflow-hidden">
-              <CardHeader title="Risk by Category" subtitle="Five-category breakdown" icon={<ListIcon />} />
-              <div className="flex-1 px-5 py-4 space-y-4 flex flex-col justify-center">
-                {categories.map((c) => {
-                  const cs = c.item?.score != null ? Number(c.item.score) : null;
-                  const t = themeFor(severityOf(cs));
-                  return (
-                    <div key={c.key}>
-                      <div className="flex items-center justify-between text-xs mb-1.5">
-                        <span className="text-gray-300 font-medium">{c.label}</span>
-                        <span className={`font-bold ${t.text}`}>{cs != null ? cs : "\u2014"}<span className="text-[10px] text-gray-500 font-medium">/100</span></span>
-                      </div>
-                      <Bar value={cs} colorClass={t.bar} />
-                      {c.item?.reason ? (
-                        <p className="mt-1.5 text-[11px] text-gray-400 leading-relaxed">
-                          {c.item.reason}
-                        </p>
-                      ) : null}
-                    </div>
-                  );
-                })}
+            {/* Project Feasibility */}
+            <Card className="overflow-hidden">
+              <CardHeader title="Project Feasibility" icon={<FeasibilityIcon />} />
+              <div className="px-5 py-4 flex flex-col items-center text-center">
+                <RingGauge value={feasibility} size={128} stroke={11} color="#6366f1" subLabel="% feasible" />
+                <div className="mt-3 w-full rounded-xl bg-gray-900/40 border border-gray-700/30 p-3.5 text-center">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Feasibility Verdict</p>
+                  <p className="text-sm text-gray-200 leading-relaxed">
+                    {data?.feasibilityVerdict || "No feasibility verdict provided."}
+                  </p>
+                </div>
               </div>
             </Card>
 
-            {/* Financial Details - below Risk by Category */}
-            <Card className="flex-1 flex flex-col overflow-hidden">
+            {/* Assessment Metrics */}
+            <Card className="overflow-hidden">
+              <CardHeader title="Assessment Metrics" subtitle="Gemini's 0-100 health metrics" icon={<GaugeIcon />} />
+              <div className="px-5 py-4">
+                <div className="rounded-xl bg-gray-900/40 border border-gray-700/30 px-4 py-3.5 space-y-3.5">
+                  {metricsEntries.length > 0 ? (
+                    metricsEntries.map(([key, value]) => {
+                      const v = value != null ? Number(value) : null;
+                      const msev = v != null ? severityOf(100 - v) : "none";
+                      return (
+                        <div key={key}>
+                          <div className="flex items-center justify-between text-xs mb-1.5">
+                            <span className="text-gray-300 font-medium">{METRIC_LABELS[key] || key}</span>
+                            <span className="font-bold text-gray-100">{v != null ? v : "\u2014"}</span>
+                          </div>
+                          <Bar value={v} colorClass={RISK_THEME[msev]?.bar || "bg-gray-500"} />
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-xs text-gray-500">No metrics returned.</p>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* Financial Details */}
+            <Card className="overflow-hidden">
               <CardHeader title="Financial Details" subtitle="Budget adequacy vs historical comparison" icon={<GaugeIcon />} />
-              <div className="flex-1 px-5 py-4 space-y-3 flex flex-col justify-center">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">Blended Financial Risk</span>
-                  <span className={`text-sm font-bold ${themeFor(severityOf(financial)).text}`}>
-                    {financial != null ? financial : "\u2014"}<span className="text-[10px] text-gray-500 font-medium">/100</span>
-                  </span>
+              <div className="px-5 py-4 flex flex-col gap-3">
+                <div className="rounded-xl bg-gray-900/40 border border-gray-700/30 px-4 py-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-medium text-gray-300">Blended Financial Risk</span>
+                    <span className={`text-sm font-bold ${themeFor(severityOf(financial)).text}`}>
+                      {financial != null ? financial : "\u2014"}<span className="text-[10px] text-gray-500 font-medium">/100</span>
+                    </span>
+                  </div>
+                  <Bar value={financial} colorClass={themeFor(severityOf(financial)).bar} />
+                  <div className="flex items-center justify-between mt-3 mb-1.5">
+                    <span className="text-xs font-medium text-gray-300">ML Historical Comparison</span>
+                    <span className="text-sm font-semibold text-gray-200">{mlOnlyFinancialRisk != null ? mlOnlyFinancialRisk : "\u2014"}</span>
+                  </div>
+                  <Bar value={mlOnlyFinancialRisk} colorClass="bg-indigo-500" />
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">ML historical comparison</span>
-                  <span className="text-sm font-semibold text-gray-200">{mlOnlyFinancialRisk != null ? mlOnlyFinancialRisk : "\u2014"}</span>
-                </div>
-                <div className="border-t border-gray-700/30 pt-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400">Budget Adequacy</span>
+                <div className="rounded-xl bg-gray-900/40 border border-gray-700/30 p-3.5">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-medium text-gray-300">Budget Adequacy</span>
                     <span className={`text-sm font-bold ${themeFor(severityOf(budgetAdequacyRisk != null ? 100 - budgetAdequacyRisk : null)).text}`}>
                       {budgetAdequacyRisk != null ? budgetAdequacyRisk : "\u2014"}<span className="text-[10px] text-gray-500 font-medium">/100</span>
                     </span>
                   </div>
+                  <Bar value={budgetAdequacyRisk} colorClass={themeFor(severityOf(budgetAdequacyRisk != null ? 100 - budgetAdequacyRisk : null)).bar} />
                   {budgetAdequacy.reasoning && (
                     <p className="mt-2 text-[11px] text-gray-400 leading-relaxed">{budgetAdequacy.reasoning}</p>
                   )}
                 </div>
               </div>
             </Card>
-
           </div>
 
-          {/* CENTER - SWOT */}
-          <div className="lg:col-span-6 flex flex-col gap-6 h-full">
-            <Card className="shrink-0">
-              <CardHeader title="SWOT Analysis" subtitle="Gemini's structured assessment" icon={<SwotIcon />} />
-              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <SwotBlock title="Strengths" icon={<StrengthIcon />} items={swot.strengths} tone="green" />
-                <SwotBlock title="Weaknesses" icon={<WeaknessIcon />} items={swot.weaknesses} tone="red" />
-                <SwotBlock title="Opportunities" icon={<OpportunityIcon />} items={swot.opportunities} tone="blue" />
-                <SwotBlock title="Threats" icon={<ThreatIcon />} items={swot.threats} tone="amber" />
-              </div>
-            </Card>
+          {/* ROW 2 - Risk by Category (full width, horizontal) */}
+          <Card>
+            <CardHeader title="Risk by Category" subtitle="Five-category breakdown" icon={<ListIcon />} />
+            <div className="px-5 py-4 flex flex-col lg:flex-row gap-4">
+              {categories.map((c) => {
+                const cs = c.item?.score != null ? Number(c.item.score) : null;
+                const t = themeFor(severityOf(cs));
+                const weight = Math.max((c.item?.reason || "").length, 20);
+                return (
+                  <div
+                    key={c.key}
+                    style={{ flexGrow: weight, flexShrink: 1, flexBasis: 0, minWidth: 120 }}
+                    className="rounded-xl border border-gray-700/30 bg-gray-900/30 p-3"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-semibold text-gray-200">{c.label}</span>
+                      <span className={`text-sm font-bold ${t.text}`}>{cs != null ? cs : "\u2014"}<span className="text-[10px] text-gray-500 font-medium">/100</span></span>
+                    </div>
+                    <Bar value={cs} colorClass={t.bar} />
+                    {c.item?.reason ? (
+                      <p className="mt-2 text-[11px] text-gray-400 leading-relaxed">{c.item.reason}</p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
 
-            {/* Key Risk Factors - below SWOT, same width */}
-            <Card className="flex-1 flex flex-col overflow-hidden">
+          {/* ROW 3 - Key Risk Factors | SWOT Analysis */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Key Risk Factors */}
+            <Card className="lg:col-span-6">
               <CardHeader title="Key Risk Factors" subtitle="Primary drivers of the financial baseline" icon={<ListIcon />} />
-              <div className={`flex-1 px-5 py-4 space-y-2 ${showAllFactors ? "overflow-y-auto max-h-96" : ""}`}>
+              <div className="px-5 py-4 space-y-2">
                 {topFactors.length > 0 ? (
-                  (showAllFactors ? topFactors : topFactors.slice(0, 4)).map((f, i) => {
+                  topFactors.map((f, i) => {
                     const negative = f.direction === "increases_risk";
                     const title = humanizeFeatureName(f.feature);
                     const explanation = explanationFor(f.feature, f.direction);
@@ -730,82 +794,47 @@ function RiskAssessment({
                   <p className="text-xs text-gray-500">No risk factors returned.</p>
                 )}
               </div>
-              {topFactors.length > 4 && (
-                <div className="px-5 pb-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowAllFactors((s) => !s)}
-                    className="w-full h-9 text-xs font-semibold rounded-lg border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 transition-colors cursor-pointer"
-                  >
-                    {showAllFactors ? "Show less" : `Show all ${topFactors.length} risk factors`}
-                  </button>
-                </div>
-              )}
+            </Card>
+
+            {/* SWOT Analysis */}
+            <Card className="lg:col-span-6">
+              <CardHeader title="SWOT Analysis" subtitle="Gemini's structured assessment" icon={<SwotIcon />} />
+              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <SwotBlock title="Strengths" icon={<StrengthIcon />} items={swot.strengths} tone="green" />
+                <SwotBlock title="Weaknesses" icon={<WeaknessIcon />} items={swot.weaknesses} tone="red" />
+                <SwotBlock title="Opportunities" icon={<OpportunityIcon />} items={swot.opportunities} tone="blue" />
+                <SwotBlock title="Threats" icon={<ThreatIcon />} items={swot.threats} tone="amber" />
+              </div>
             </Card>
           </div>
 
-          {/* RIGHT - Feasibility */}
-          <div className="lg:col-span-3 flex flex-col gap-6 h-full">
-            <Card className="flex-1 flex flex-col overflow-hidden">
-              <CardHeader title="Project Feasibility" icon={<FeasibilityIcon />} />
-              <div className="flex-1 px-5 py-6 flex flex-col items-center justify-center text-center">
-                <RingGauge value={feasibility} size={140} stroke={12} color="#6366f1" subLabel="% feasible" />
-                <p className="mt-4 text-sm text-gray-300 leading-relaxed">
-                  {data?.feasibilityVerdict || "No feasibility verdict provided."}
+          {/* ROW 4 - Recommendations full width */}
+          <Card>
+            <CardHeader title="Recommendations" subtitle="Actionable next steps to de-risk your startup" icon={<SuccessIcon />} />
+            <div className="px-5 py-4">
+              {recommendations.length > 0 ? (
+                <ul className="space-y-3">
+                  {recommendations.map((r, i) => (
+                    <li key={i} className="flex gap-3 text-sm text-gray-300 leading-relaxed">
+                      <span className="shrink-0 w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold flex items-center justify-center">
+                        {i + 1}
+                      </span>
+                      <span className="min-w-0">{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-gray-400">
+                  No actionable recommendations were returned for this assessment.
                 </p>
-              </div>
-            </Card>
-
-            <Card className="flex-1 flex flex-col overflow-hidden">
-              <CardHeader title="Assessment Metrics" subtitle="Gemini's 0-100 health metrics" icon={<GaugeIcon />} />
-              <div className="flex-1 px-5 py-4 space-y-3.5 overflow-y-auto">
-                {metricsEntries.length > 0 ? (
-                  metricsEntries.map(([key, value]) => {
-                    const v = value != null ? Number(value) : null;
-                    const msev = v != null ? severityOf(100 - v) : "none";
-                    return (
-                      <div key={key}>
-                        <div className="flex items-center justify-between text-xs mb-1.5">
-                          <span className="text-gray-300 font-medium">{METRIC_LABELS[key] || key}</span>
-                          <span className="font-bold text-gray-100">{v != null ? v : "\u2014"}</span>
-                        </div>
-                        <Bar value={v} colorClass={RISK_THEME[msev]?.bar || "bg-gray-500"} />
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-xs text-gray-500">No metrics returned.</p>
-                )}
-              </div>
-            </Card>
-          </div>
-
-          {/* Recommendations - below the 3-column dashboard */}
-          <div className="mt-6 lg:col-span-12">
-            <Card>
-              <CardHeader title="Recommendations" subtitle="Actionable next steps to de-risk your startup" icon={<SuccessIcon />} />
-              <div className="px-5 py-5">
-                {recommendations.length > 0 ? (
-                  <ul className="space-y-3">
-                    {recommendations.map((r, i) => (
-                      <li key={i} className="flex gap-3 text-sm text-gray-300 leading-relaxed">
-                        <span className="shrink-0 w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold flex items-center justify-center">
-                          {i + 1}
-                        </span>
-                        <span className="min-w-0">{r}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-gray-400">
-                    No actionable recommendations were returned for this assessment.
-                  </p>
-                )}
-              </div>
-            </Card>
-          </div>
+              )}
+            </div>
+          </Card>
         </div>
       </div>
+
+      {/* Scroll down hint */}
+      <ScrollHint />
     </div>
   );
 }

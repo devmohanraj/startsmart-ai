@@ -36,7 +36,7 @@ function AboutPanel() {
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
           AI-Powered Risk Analysis Platform
         </div>
-        <h1 className="text-4xl font-bold text-white tracking-tight leading-tight">
+        <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-tight">
           The smartest step<br />
           <span className="text-indigo-400">before your first step</span>
         </h1>

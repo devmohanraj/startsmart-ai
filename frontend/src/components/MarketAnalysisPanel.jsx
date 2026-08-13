@@ -314,7 +314,7 @@ function MarketAnalysisPanel({
 
   if (loading && !data) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 md:gap-6 items-stretch h-[calc(100vh-6rem)]">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 md:gap-6 items-stretch lg:h-[calc(100vh-6rem)]">
         <div className="md:col-span-1 lg:col-span-6 flex flex-col gap-4 h-full">
           <Skeleton className="h-6 w-40" />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3">
@@ -341,7 +341,7 @@ function MarketAnalysisPanel({
       /Request failed with status (500|502|503)/,
     );
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 items-stretch h-[calc(100vh-6rem)]">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 items-stretch lg:h-[calc(100vh-6rem)]">
         <div className="lg:col-span-9 flex flex-col gap-4 h-full">
           <div className="flex items-start gap-3 bg-red-900/20 border border-red-800/50 rounded-xl px-4 py-3.5">
             <svg
@@ -397,7 +397,7 @@ function MarketAnalysisPanel({
   if (!data) return null;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 md:gap-6 items-stretch h-[calc(100vh-6rem)]">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 md:gap-6 items-stretch lg:h-[calc(100vh-6rem)]">
       {/* Left column — Market Analysis */}
       <div className="md:col-span-1 lg:col-span-6 flex flex-col gap-3 md:gap-4 h-full">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 shrink-0">
@@ -454,7 +454,7 @@ function MarketAnalysisPanel({
 
         {/* Market trends chart — grows to fill remaining space */}
         {trends.length > 0 && (
-          <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 md:p-4 flex flex-col gap-2 md:gap-3 min-h-0 h-84.5">
+          <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 md:p-4 flex flex-col gap-2 md:gap-3 min-h-0 h-72 md:h-84.5">
             <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">
               Market Trends
             </h4>

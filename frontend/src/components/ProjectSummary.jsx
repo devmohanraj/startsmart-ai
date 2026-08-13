@@ -6,7 +6,7 @@ const INR_FORMATTER = new Intl.NumberFormat("en-IN", {
 
 function ProjectSummary({ project, onReset }) {
   return (
-    <div className="bg-gray-800/50 border border-gray-700/50 rounded-2xl shadow-sm h-126 flex-col overflow-hidden">
+    <div className="bg-gray-800/50 border border-gray-700/50 rounded-2xl shadow-sm flex flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700/50 shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center">
@@ -24,7 +24,7 @@ function ProjectSummary({ project, onReset }) {
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col px-5 py-4 gap-4 overflow-y-auto">
+      <div className="flex flex-col px-5 py-4 gap-4">
         <div className="space-y-3.5">
           <div className="pb-3 border-b border-gray-700/30">
             <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Project Name</p>
@@ -58,7 +58,7 @@ function ProjectSummary({ project, onReset }) {
         </div>
 
         {project.description && (
-          <div className="mt-auto bg-gray-900/40 rounded-lg p-3.5 border border-gray-700/30">
+          <div className="bg-gray-900/40 rounded-lg p-3.5 border border-gray-700/30">
             <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Description</p>
             <p className="text-xs text-gray-400 leading-relaxed">{project.description}</p>
           </div>
