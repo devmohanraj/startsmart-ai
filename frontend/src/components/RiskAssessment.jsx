@@ -648,9 +648,11 @@ function RiskAssessment({
                 value={projectId}
                 onChange={(picked) => {
                   setSelected(picked);
-                  setData(null);
-                  setLoading(true);
+                  const cached = riskAssessmentCache[picked.projectId];
+                  setData(cached || null);
+                  setLoading(!cached);
                   setError("");
+                  setIsPolling(false);
                   if (onSelectProject) onSelectProject(picked);
                 }}
                 label=""

@@ -92,7 +92,7 @@ function AuthModal({ isOpen, onClose, initialMode = "login", onAuthSuccess }) {
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors cursor-pointer"
           aria-label="Close"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -125,13 +125,13 @@ function AuthModal({ isOpen, onClose, initialMode = "login", onAuthSuccess }) {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-1 p-1 bg-gray-700 rounded-lg mb-6">
+        <div className="flex gap-1 p-1 bg-gray-800 border border-gray-700/50 rounded-lg mb-6">
           <button
             onClick={() => handleModeChange("login")}
             className={`flex-1 h-9 text-sm font-medium rounded-md transition-all cursor-pointer ${
               mode === "login"
-                ? "bg-gray-600 text-indigo-400 shadow-sm"
-                : "text-gray-400 hover:text-gray-200"
+                ? "bg-indigo-500 text-white shadow-sm"
+                : "text-gray-300 hover:text-white hover:bg-gray-700"
             }`}
           >
             Log In
@@ -140,8 +140,8 @@ function AuthModal({ isOpen, onClose, initialMode = "login", onAuthSuccess }) {
             onClick={() => handleModeChange("signup")}
             className={`flex-1 h-9 text-sm font-medium rounded-md transition-all cursor-pointer ${
               mode === "signup"
-                ? "bg-gray-600 text-indigo-400 shadow-sm"
-                : "text-gray-400 hover:text-gray-200"
+                ? "bg-indigo-500 text-white shadow-sm"
+                : "text-gray-300 hover:text-white hover:bg-gray-700"
             }`}
           >
             Sign Up

@@ -63,8 +63,8 @@ function Navbar({ activeTab, onTabChange, onHome, user, onLoginClick, onMyProjec
               aria-selected={activeTab === tab}
               className={`relative px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer ${
                 activeTab === tab
-                  ? "text-indigo-400 bg-gray-800"
-                  : "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+                  ? "text-indigo-300 bg-gray-800"
+                  : "text-gray-300 hover:text-white hover:bg-gray-800"
               }`}
               onClick={() => onTabChange(tab)}
             >
@@ -177,8 +177,8 @@ function Navbar({ activeTab, onTabChange, onHome, user, onLoginClick, onMyProjec
                     }}
                     className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors cursor-pointer ${
                       activeTab === tab
-                        ? "text-indigo-400 bg-gray-700"
-                        : "text-gray-300 hover:bg-gray-700"
+                        ? "text-indigo-300 bg-gray-700"
+                        : "text-gray-200 hover:bg-gray-700"
                     }`}
                   >
                     {tab}
