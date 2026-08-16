@@ -207,8 +207,7 @@ public class RiskAssessmentService {
                     "market_opportunity": <0-100>,
                     "execution_readiness": <0-100>,
                     "scalability_potential": <0-100>
-                  },
-                  "recommendations": ["...", "...", "..."]
+                  }
                 }
                 """
                 .formatted(
@@ -270,7 +269,6 @@ public class RiskAssessmentService {
                 .feasibilityScore(feasibilityScore)
                 .feasibilityVerdict(gemini.getFeasibilityVerdict())
                 .assessmentMetricsJson(toJson(gemini.getAssessmentMetrics()))
-                .recommendationsJson(toJson(gemini.getRecommendations()))
                 .build();
     }
 
@@ -350,7 +348,6 @@ public class RiskAssessmentService {
         budgetAdequacy = riskBreakdown != null ? riskBreakdown.getBudgetAdequacy() : null;
 
         RiskAssessmentResponseDTO.SwotDTO swotData = fromJson(swot.getSwotJson(), new TypeReference<>() {});
-        List<String> recommendations = fromJson(swot.getRecommendationsJson(), new TypeReference<>() {});
         Map<String, Double> assessmentMetrics = fromJson(swot.getAssessmentMetricsJson(), new TypeReference<>() {});
 
         return RiskAssessmentResponseDTO.builder()
@@ -370,7 +367,6 @@ public class RiskAssessmentService {
                 .feasibilityVerdict(swot.getFeasibilityVerdict())
                 .assessmentMetrics(assessmentMetrics)
                 .riskBreakdown(riskBreakdown)
-                .recommendations(recommendations)
                 .createdAt(prediction.getCreatedAt() != null ? prediction.getCreatedAt() : swot.getCreatedAt())
                 .build();
     }

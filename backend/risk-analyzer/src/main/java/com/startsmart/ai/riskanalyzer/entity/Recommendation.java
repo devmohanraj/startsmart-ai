@@ -3,19 +3,17 @@ package com.startsmart.ai.riskanalyzer.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "swot_analyses")
+@Table(name = "recommendations")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SwotAnalysis {
+public class Recommendation {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,21 +23,18 @@ public class SwotAnalysis {
     @JoinColumn(name = "project_id")
     private Project project;
 
-    @Column(name = "swot_json", columnDefinition = "jsonb")
-    @JdbcTypeCode(SqlTypes.JSON)
-    private String swotJson;
+    @Column(name = "risk_category")
+    private String riskCategory;
 
     @Column(columnDefinition = "TEXT")
-    private String riskNarrative;
-
-    private Double feasibilityScore;
+    private String recommendationText;
 
     @Column(columnDefinition = "TEXT")
-    private String feasibilityVerdict;
+    private String mitigationStrategy;
 
-    @Column(name = "assessment_metrics_json", columnDefinition = "jsonb")
-    @JdbcTypeCode(SqlTypes.JSON)
-    private String assessmentMetricsJson;
+    private String priority;
+
+    private String phase;
 
     @CreationTimestamp
     @Column(updatable = false)

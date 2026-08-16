@@ -45,8 +45,6 @@ public class GeminiRiskResponseDTO {
     @JsonProperty("assessment_metrics")
     private Map<String, Double> assessmentMetrics;
 
-    private List<String> recommendations;
-
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class RiskScore {

@@ -1,7 +1,10 @@
 package com.startsmart.ai.riskanalyzer.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.startsmart.ai.riskanalyzer.dto.GeminiRecommendationDTO;
 import com.startsmart.ai.riskanalyzer.dto.GeminiResponseDTO;
+import com.startsmart.ai.riskanalyzer.dto.RiskAssessmentResponseDTO;
 import com.startsmart.ai.riskanalyzer.entity.Project;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -9,6 +12,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class GeminiService {
@@ -99,11 +103,206 @@ public class GeminiService {
                         project.getDescription() != null ? project.getDescription() : "Not specified");
     }
 
+    /**
+     * Generates specific, actionable, phased recommendations for a single risk
+     * category of an already-assessed project. The prompt anchors Gemini on the
+     * project's actual budget/industry/scope and the overall SWOT so the advice
+     * is grounded and never contradicts identified strengths.
+     *
+     * @param project  the project the risk assessment was generated for
+     * @param category the risk category to address
+     *                 (financial/market/technical/operational/execution)
+     * @param score    the category's risk score (0-100) from the persisted
+     *                 breakdown
+     * @param reason   Gemini's original reason text for that category
+     * @param swot     the overall SWOT from the risk assessment
+     * @return 1-2 parsed recommendation objects for the category
+     * @deprecated one Gemini call per category is quota-expensive; use
+     *             {@link #generateCombinedRecommendations(List, Project, RiskAssessmentResponseDTO.SwotDTO)}
+     *             which covers all top categories in a single request. Kept only
+     *             as a rollback fallback.
+     */
+    @Deprecated
+    public List<GeminiRecommendationDTO> generateCategoryRecommendations(
+            Project project,
+            String category,
+            Double score,
+            String reason,
+            RiskAssessmentResponseDTO.SwotDTO swot) {
+        String prompt = buildRecommendationPrompt(project, category, score, reason, swot);
+        String rawJson = callGemini(prompt);
+        String cleaned = stripMarkdown(rawJson);
+
+        try {
+            return objectMapper.readValue(cleaned, new TypeReference<List<GeminiRecommendationDTO>>() {
+            });
+        } catch (Exception e) {
+            throw new GeminiException("Failed to parse Gemini recommendation response: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Generates specific, actionable, phased recommendations for ALL top risk
+     * categories of an already-assessed project in a SINGLE Gemini call — one
+     * prompt, one JSON response. Cuts recommendation generation from one
+     * request per category down to one request total (a quota and latency win).
+     *
+     * @param topCategories the top-ranked categories (name, score, reason),
+     *                      ranked highest risk first
+     * @param project       the project the risk assessment was generated for
+     * @param swot          the overall SWOT from the risk assessment
+     * @return the cleaned JSON text Gemini returned (one {@code recommendations}
+     *         array covering every category) — callers parse it into DTOs
+     */
+    public String generateCombinedRecommendations(
+            List<RecommendationRanker.RankedCategory> topCategories,
+            Project project,
+            RiskAssessmentResponseDTO.SwotDTO swot) {
+        String prompt = buildCombinedRecommendationPrompt(topCategories, project, swot);
+        String rawJson = callGemini(prompt);
+        return stripMarkdown(rawJson);
+    }
+
+    private String buildRecommendationPrompt(
+            Project project, String category, Double score, String reason,
+            RiskAssessmentResponseDTO.SwotDTO swot) {
+        String budgetText = project.getBudget() != null ? "₹" + project.getBudget() : "Not specified";
+        String categoryLabel = capitalize(category) + " Risk";
+
+        return """
+                You are a startup risk mitigation strategist. The risk assessment for the project below has already been completed. Your task is to produce SPECIFIC, ACTIONABLE recommendations that directly address the single highest-priority risk category given below.
+
+                Project details:
+                - Industry: %s
+                - Business Model: %s
+                - Target Market: %s
+                - Budget: %s
+                - Description: %s
+
+                Risk category to address: %s (score %s/100)
+                Reason the assessor gave for this risk: %s
+
+                Overall SWOT of the project (your recommendations must not contradict identified strengths):
+                %s
+
+                STRICT REQUIREMENTS:
+                1. Recommendations must be specific and actionable for THIS exact project - reference the actual budget, industry, scope, and target market given above. Do NOT give generic advice such as "improve marketing", "hire a team", or "raise more funding" without grounding it in this project's specifics.
+                2. Do not repeat or summarize the risk reason above. Only NEW, concrete guidance on what to do about the risk.
+                3. Each recommendation must include a realistic mitigation strategy explaining HOW to execute it.
+                4. Assign each recommendation a phase: "Immediate" (action within the next week), "Next 30 Days", or "Next Quarter".
+                5. Return ONLY valid JSON - no markdown, no code fences, no preamble. Exactly a JSON array of 1-2 objects in this shape:
+                [
+                  {
+                    "recommendation": "<specific actionable recommendation>",
+                    "mitigation": "<concrete mitigation strategy>",
+                    "phase": "Immediate|Next 30 Days|Next Quarter"
+                  }
+                ]
+                """
+                .formatted(
+                        project.getProjectType() != null ? project.getProjectType() : "Not specified",
+                        project.getBusinessModel() != null ? project.getBusinessModel() : "Not specified",
+                        project.getTargetMarket() != null ? project.getTargetMarket() : "Not specified",
+                        budgetText,
+                        project.getDescription() != null ? project.getDescription() : "Not specified",
+                        categoryLabel,
+                        score != null ? score : "N/A",
+                        reason != null ? reason : "Not available",
+                        swotText(swot));
+    }
+
+    private String buildCombinedRecommendationPrompt(
+            List<RecommendationRanker.RankedCategory> topCategories,
+            Project project,
+            RiskAssessmentResponseDTO.SwotDTO swot) {
+        String budgetText = project.getBudget() != null ? "₹" + project.getBudget() : "Not specified";
+        String categoriesText = topCategories == null || topCategories.isEmpty()
+                ? "None"
+                : topCategories.stream()
+                        .map(c -> "- " + capitalize(c.category()) + " Risk (score "
+                                + (c.score() != null ? c.score() : "N/A") + "/100): "
+                                + (c.reason() != null ? c.reason() : "Not available"))
+                        .collect(Collectors.joining("\n"));
+        int categoryCount = topCategories != null ? topCategories.size() : 0;
+
+        return """
+                You are a startup risk mitigation strategist. The risk assessment for the project below has already been completed. Your task is to produce SPECIFIC, ACTIONABLE recommendations that address the top risk categories listed below — all in a SINGLE response covering every listed category.
+
+                Project details:
+                - Industry: %s
+                - Business Model: %s
+                - Target Market: %s
+                - Budget: %s
+                - Description: %s
+
+                Top risk categories to address (ranked highest first):
+                %s
+
+                Overall SWOT of the project (your recommendations must not contradict identified strengths):
+                %s
+
+                STRICT REQUIREMENTS:
+                1. Produce 1-2 recommendations for EACH of the %d risk categories listed above, all inside ONE JSON object.
+                2. Recommendations must be specific and actionable for THIS exact project - reference the actual budget, industry, scope, and target market given above. Do NOT give generic advice such as "improve marketing", "hire a team", or "raise more funding" without grounding it in this project's specifics.
+                3. Do not repeat or summarize the risk reasons above. Only NEW, concrete guidance on what to do about each risk.
+                4. Each recommendation must include a realistic mitigation strategy explaining HOW to execute it.
+                5. Assign each recommendation a phase: "Immediate" (action within the next week), "Next 30 Days", or "Next Quarter".
+                6. Return ONLY valid JSON - no markdown, no code fences, no preamble. Exactly ONE JSON object in this shape:
+                {
+                  "recommendations": [
+                    {
+                      "riskCategory": "<exact category key: financial|market|technical|operational|execution>",
+                      "recommendation": "<specific actionable recommendation>",
+                      "mitigation": "<concrete mitigation strategy>",
+                      "phase": "Immediate|Next 30 Days|Next Quarter"
+                    }
+                  ]
+                }
+                Include at least one entry for every risk category listed above, and set the "riskCategory" field to the EXACT category key you were given for it.
+                """
+                .formatted(
+                        project.getProjectType() != null ? project.getProjectType() : "Not specified",
+                        project.getBusinessModel() != null ? project.getBusinessModel() : "Not specified",
+                        project.getTargetMarket() != null ? project.getTargetMarket() : "Not specified",
+                        budgetText,
+                        project.getDescription() != null ? project.getDescription() : "Not specified",
+                        categoriesText,
+                        swotText(swot),
+                        categoryCount);
+    }
+
+    private String swotText(RiskAssessmentResponseDTO.SwotDTO swot) {
+        if (swot == null) {
+            return "Not available";
+        }
+        return "Strengths: " + joinList(swot.getStrengths())
+                + "\nWeaknesses: " + joinList(swot.getWeaknesses())
+                + "\nOpportunities: " + joinList(swot.getOpportunities())
+                + "\nThreats: " + joinList(swot.getThreats());
+    }
+
+    private String joinList(List<String> items) {
+        if (items == null || items.isEmpty()) {
+            return "None";
+        }
+        return String.join("; ", items);
+    }
+
+    private String capitalize(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        return Character.toUpperCase(value.charAt(0)) + value.substring(1);
+    }
+
     @SuppressWarnings("unchecked")
     public String callGemini(String prompt) {
+
         Map<String, Object> requestBody = Map.of(
-                "contents", List.of(Map.of(
-                        "parts", List.of(Map.of("text", prompt)))));
+                "contents", List.of(
+                        Map.of(
+                                "parts", List.of(
+                                        Map.of("text", prompt)))));
 
         Map<String, Object> response = webClient.post()
                 .uri(apiUrl + "?key=" + apiKey)
@@ -111,25 +310,46 @@ public class GeminiService {
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(Map.class)
+                .retryWhen(
+                        reactor.util.retry.Retry
+                                .backoff(2, java.time.Duration.ofSeconds(1))
+                                .maxBackoff(java.time.Duration.ofSeconds(4))
+                                .filter(throwable ->
+                                        throwable instanceof org.springframework.web.reactive.function.client.WebClientResponseException.ServiceUnavailable))
+                .onErrorMap(
+                        org.springframework.web.reactive.function.client.WebClientResponseException.ServiceUnavailable.class,
+                        e -> new GeminiException("Gemini is temporarily unavailable. Please try again in a moment.", e))
+                .onErrorMap(
+                        org.springframework.web.reactive.function.client.WebClientResponseException.TooManyRequests.class,
+                        e -> new GeminiException("Gemini API rate limit reached. Please wait a minute and try again.", e))
                 .block();
 
         if (response == null) {
             throw new GeminiException("Gemini API returned null response");
         }
-
         try {
             List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.get("candidates");
             if (candidates == null || candidates.isEmpty()) {
                 throw new GeminiException("Gemini API returned no candidates");
             }
+
             Map<String, Object> content = (Map<String, Object>) candidates.get(0).get("content");
             List<Map<String, Object>> parts = (List<Map<String, Object>>) content.get("parts");
+
+            if (parts == null || parts.isEmpty()) {
+                throw new GeminiException("Gemini API returned no content parts");
+            }
             String text = (String) parts.get(0).get("text");
+
+            if (text == null || text.isBlank()) {
+                throw new GeminiException("Gemini API returned empty text");
+            }
             return text;
+
         } catch (GeminiException e) {
             throw e;
         } catch (Exception e) {
-            throw new GeminiException("Failed to extract text from Gemini response: " + e.getMessage(), e);
+            throw new GeminiException("Failed to extract text from Gemini response: " + e.getMessage(),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 e);
         }
     }
 

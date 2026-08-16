@@ -174,6 +174,7 @@ function MarketAnalysisPanel({
   const [loading, setLoading] = useState(!cachedData);
   const [error, setError] = useState("");
   const [isPolling, setIsPolling] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (cachedData) {
@@ -282,6 +283,8 @@ function MarketAnalysisPanel({
   };
 
   const retry = () => {
+    if (isGenerating) return;
+    setIsGenerating(true);
     setLoading(true);
     setError("");
     setData(null);
@@ -303,7 +306,10 @@ function MarketAnalysisPanel({
         if (onCacheAnalysis) onCacheAnalysis(projectId, json);
       })
       .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setIsGenerating(false);
+      });
   };
 
   let trends = [];
@@ -392,9 +398,10 @@ function MarketAnalysisPanel({
           ) : (
             <button
               onClick={retry}
-              className="h-10 px-6 text-sm font-medium text-white bg-indigo-500 rounded-lg hover:bg-indigo-600 transition-colors cursor-pointer"
+              disabled={isGenerating}
+              className="h-10 px-6 text-sm font-medium text-white bg-indigo-500 rounded-lg hover:bg-indigo-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Retry
+              {isGenerating ? "Generating..." : "Retry"}
             </button>
           )}
         </div>
@@ -426,10 +433,10 @@ function MarketAnalysisPanel({
             </div>
             <button
               onClick={retry}
-              disabled={loading}
-              className="text-xs font-medium text-indigo-400 hover:text-indigo-300 disabled:opacity-50 transition-colors cursor-pointer"
+              disabled={isGenerating}
+              className="text-xs font-medium text-indigo-400 hover:text-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
-              {loading ? "Loading..." : "Refresh"}
+              {isGenerating ? "Generating..." : "Refresh"}
             </button>
           </div>
         </div>

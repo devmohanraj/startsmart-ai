@@ -6,7 +6,6 @@ import com.startsmart.ai.riskanalyzer.dto.RiskAssessmentResponseDTO;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -94,8 +93,7 @@ class RiskAssessmentJsonRoundTripTest {
                   "risk_narrative": "The financial baseline of 34/100 is elevated by an aggressive budget; combined with the technically demanding stack this yields a moderate overall risk profile.",
                   "swot": {"strengths": ["a"], "weaknesses": [], "opportunities": [], "threats": []},
                   "feasibility_verdict": "Moderate",
-                  "assessment_metrics": {"financial_sustainability": 68.0, "team_capability": 55.0},
-                  "recommendations": ["Hire a CTO", "Run a pilot"]
+                  "assessment_metrics": {"financial_sustainability": 68.0, "team_capability": 55.0}
                 }
                 """;
 
@@ -113,7 +111,6 @@ class RiskAssessmentJsonRoundTripTest {
         assertNotNull(dto.getRiskNarrative());
         assertTrue(dto.getRiskNarrative().contains("financial baseline"));
         assertEquals("Moderate", dto.getFeasibilityVerdict());
-        assertEquals(List.of("Hire a CTO", "Run a pilot"), dto.getRecommendations());
         assertEquals(Map.of("financial_sustainability", 68.0, "team_capability", 55.0), dto.getAssessmentMetrics());
     }
 

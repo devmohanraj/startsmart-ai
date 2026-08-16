@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import ProjectSelector from "./ProjectSelector";
 import ProjectCatalog from "./ProjectCatalog";
 import AuthGateMessage from "./AuthGateMessage";
+import RecommendationsPanel from "./RecommendationsPanel";
 
 const CATEGORY_ORDER = [
   { key: "financial_risk", label: "Financial" },
@@ -365,6 +366,8 @@ function RiskAssessment({
   onReset,
   riskAssessmentCache = {},
   onAssessmentLoaded,
+  recommendationCache = {},
+  onRecommendationsLoaded,
 }) {
   const [selected, setSelected] = useState(project || null);
   const projectId = selected?.projectId;
@@ -409,6 +412,7 @@ function RiskAssessment({
           setData(cached);
           setError("");
           setLoading(false);
+          setIsGenerating(false);
           onAssessmentLoaded?.(projectId, cached);
         }
       })
@@ -439,6 +443,7 @@ function RiskAssessment({
         } else {
           setError(err.message);
           setLoading(false);
+          setIsGenerating(false);
         }
       });
 
@@ -463,7 +468,12 @@ function RiskAssessment({
     return () => clearInterval(interval);
   }, [projectId, error, isPolling, fetchAssessment]);
 
-  const retry = () => setReloadKey((k) => k + 1);
+  const retry = () => {
+    if (isGenerating) return;
+    if (riskAssessmentCache[projectId]) return;
+    setIsGenerating(true);
+    setReloadKey((k) => k + 1);
+  };
 
   // ---------------------------------------------------------------
   // Derived data mapped from the API response (unchanged)
@@ -484,7 +494,7 @@ function RiskAssessment({
   const feasibility = data?.feasibilityScore;
   const metricsEntries = Object.entries(metrics);
   const budgetAdequacyRisk = budgetAdequacy.score != null ? Number(budgetAdequacy.score) : null;
-  const recommendations = data?.recommendations || [];
+  const assessmentReady = Boolean(projectId && data && !loading && !error);
 
     // ---------------------------------------------------------------
   // Not logged in — show auth gate
@@ -660,9 +670,10 @@ function RiskAssessment({
             )}
             <button
               onClick={retry}
-              className="h-10 px-4 text-sm font-medium text-indigo-400 border border-indigo-500/30 rounded-lg hover:bg-indigo-500/10 transition-colors cursor-pointer"
+              disabled={isGenerating}
+              className="h-10 px-4 text-sm font-medium text-indigo-400 border border-indigo-500/30 rounded-lg hover:bg-indigo-500/10 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Regenerate
+              {isGenerating ? "Generating..." : "Regenerate"}
             </button>
             <button
               onClick={() => {
@@ -870,28 +881,17 @@ function RiskAssessment({
             </Card>
           </div>
 
-          {/* ROW 4 - Recommendations full width */}
-          <Card>
-            <CardHeader title="Recommendations" subtitle="Actionable next steps to de-risk your startup" icon={<SuccessIcon />} />
-            <div className="px-5 py-4">
-              {recommendations.length > 0 ? (
-                <ul className="space-y-3">
-                  {recommendations.map((r, i) => (
-                    <li key={i} className="flex gap-3 text-sm text-gray-300 leading-relaxed">
-                      <span className="shrink-0 w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold flex items-center justify-center">
-                        {i + 1}
-                      </span>
-                      <span className="min-w-0">{r}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-gray-400">
-                  No actionable recommendations were returned for this assessment.
-                </p>
-              )}
-            </div>
-          </Card>
+          {/* ROW 4 - Recommendations full width — mounted only once the risk assessment
+              has loaded successfully so its GET-then-POST never fires early */}
+          {assessmentReady && (
+            <RecommendationsPanel
+              key={projectId}
+              projectId={projectId}
+              riskData={data}
+              cachedData={recommendationCache[projectId]}
+              onCache={onRecommendationsLoaded}
+            />
+          )}
         </div>
       </div>
 

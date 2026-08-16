@@ -39,6 +39,13 @@ function App() {
       return {};
     }
   });
+  const [recommendationCache, setRecommendationCache] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("startsmart_recommendations")) || {};
+    } catch {
+      return {};
+    }
+  });
 
   useEffect(() => {
     try {
@@ -55,6 +62,14 @@ function App() {
       // ignore quota / serialization errors
     }
   }, [analysisCache]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("startsmart_recommendations", JSON.stringify(recommendationCache));
+    } catch {
+      // ignore quota / serialization errors
+    }
+  }, [recommendationCache]);
 
   const handleProjectSubmit = (project) => {
     setSubmittedProject(project);
@@ -89,6 +104,14 @@ function App() {
   const handleAssessmentLoaded = useCallback((projectId, data) => {
     if (!projectId || !data) return;
     setRiskAssessmentCache((prev) => {
+      if (prev[projectId]) return prev;
+      return { ...prev, [projectId]: data };
+    });
+  }, []);
+
+  const handleRecommendationsLoaded = useCallback((projectId, data) => {
+    if (!projectId || !data) return;
+    setRecommendationCache((prev) => {
       if (prev[projectId]) return prev;
       return { ...prev, [projectId]: data };
     });
@@ -253,6 +276,8 @@ function App() {
             onReset={handleReset}
             riskAssessmentCache={riskAssessmentCache}
             onAssessmentLoaded={handleAssessmentLoaded}
+            recommendationCache={recommendationCache}
+            onRecommendationsLoaded={handleRecommendationsLoaded}
           />
         );
       case 'Dashboard':

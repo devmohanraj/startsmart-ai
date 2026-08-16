@@ -68,9 +68,6 @@ public class RiskAssessmentResponseDTO {
     @JsonProperty("risk_breakdown")
     private RiskBreakdownDTO riskBreakdown;
 
-    @Schema(description = "Actionable recommendations from Gemini")
-    private List<String> recommendations;
-
     @Schema(description = "Timestamp when the assessment was generated")
     private LocalDateTime createdAt;
 
