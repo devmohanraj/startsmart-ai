@@ -1,8 +1,6 @@
 package com.startsmart.ai.riskanalyzer.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.startsmart.ai.riskanalyzer.dto.GeminiRecommendationDTO;
 import com.startsmart.ai.riskanalyzer.dto.GeminiResponseDTO;
 import com.startsmart.ai.riskanalyzer.dto.RiskAssessmentResponseDTO;
 import com.startsmart.ai.riskanalyzer.entity.Project;
@@ -21,16 +19,82 @@ public class GeminiService {
     private final ObjectMapper objectMapper;
     private final String apiUrl;
     private final String apiKey;
+    private final String groqApiUrl;
+    private final String groqApiKey;
+    private final String groqModel;
 
     public GeminiService(
             WebClient.Builder webClientBuilder,
             ObjectMapper objectMapper,
             @Value("${gemini.api.url}") String apiUrl,
-            @Value("${gemini.api.key}") String apiKey) {
+            @Value("${gemini.api.key}") String apiKey,
+            @Value("${groq.api.url:https://api.groq.com/openai/v1/chat/completions}") String groqApiUrl,
+            @Value("${groq.api.key}") String groqApiKey,
+            @Value("${groq.model:llama-3.3-70b-versatile}") String groqModel) {
         this.webClient = webClientBuilder.build();
         this.objectMapper = objectMapper;
         this.apiUrl = apiUrl;
         this.apiKey = apiKey;
+        this.groqApiUrl = groqApiUrl;
+        this.groqApiKey = groqApiKey;
+        this.groqModel = groqModel;
+    }
+
+    @SuppressWarnings("unchecked")
+    public String callGroq(String prompt) {
+        Map<String, Object> requestBody = Map.of(
+                "model", groqModel,
+                "messages", List.of(
+                        Map.of("role", "user", "content", prompt)),
+                "temperature", 0.7);
+
+        Map<String, Object> response = webClient.post()
+                .uri(groqApiUrl)
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + groqApiKey)
+                .bodyValue(requestBody)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .retryWhen(
+                        reactor.util.retry.Retry
+                                .backoff(3, java.time.Duration.ofSeconds(1))
+                                .maxBackoff(java.time.Duration.ofSeconds(8))
+                                .filter(throwable ->
+                                        throwable instanceof org.springframework.web.reactive.function.client.WebClientResponseException.ServiceUnavailable))
+                .onErrorMap(
+                        org.springframework.web.reactive.function.client.WebClientResponseException.ServiceUnavailable.class,
+                        e -> new GeminiException("Groq is temporarily unavailable. Please try again in a moment.", e))
+                .onErrorMap(
+                        org.springframework.web.reactive.function.client.WebClientResponseException.TooManyRequests.class,
+                        e -> new GeminiException("Groq API rate limit reached. Please wait a minute and try again.", e))
+                .block();
+
+        if (response == null) {
+            throw new GeminiException("Groq API returned null response");
+        }
+
+        try {
+            List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
+            if (choices == null || choices.isEmpty()) {
+                throw new GeminiException("Groq API returned no choices");
+            }
+
+            Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
+            if (message == null) {
+                throw new GeminiException("Groq API returned no message in the first choice");
+            }
+
+            String text = (String) message.get("content");
+            if (text == null || text.isBlank()) {
+                throw new GeminiException("Groq API returned empty content");
+            }
+            return text;
+
+        } catch (GeminiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new GeminiException("Failed to extract text from Groq response: " + e.getMessage(), e);
+        }
     }
 
     public GeminiResponseDTO analyzeMarket(Project project) {
@@ -103,57 +167,6 @@ public class GeminiService {
                         project.getDescription() != null ? project.getDescription() : "Not specified");
     }
 
-    /**
-     * Generates specific, actionable, phased recommendations for a single risk
-     * category of an already-assessed project. The prompt anchors Gemini on the
-     * project's actual budget/industry/scope and the overall SWOT so the advice
-     * is grounded and never contradicts identified strengths.
-     *
-     * @param project  the project the risk assessment was generated for
-     * @param category the risk category to address
-     *                 (financial/market/technical/operational/execution)
-     * @param score    the category's risk score (0-100) from the persisted
-     *                 breakdown
-     * @param reason   Gemini's original reason text for that category
-     * @param swot     the overall SWOT from the risk assessment
-     * @return 1-2 parsed recommendation objects for the category
-     * @deprecated one Gemini call per category is quota-expensive; use
-     *             {@link #generateCombinedRecommendations(List, Project, RiskAssessmentResponseDTO.SwotDTO)}
-     *             which covers all top categories in a single request. Kept only
-     *             as a rollback fallback.
-     */
-    @Deprecated
-    public List<GeminiRecommendationDTO> generateCategoryRecommendations(
-            Project project,
-            String category,
-            Double score,
-            String reason,
-            RiskAssessmentResponseDTO.SwotDTO swot) {
-        String prompt = buildRecommendationPrompt(project, category, score, reason, swot);
-        String rawJson = callGemini(prompt);
-        String cleaned = stripMarkdown(rawJson);
-
-        try {
-            return objectMapper.readValue(cleaned, new TypeReference<List<GeminiRecommendationDTO>>() {
-            });
-        } catch (Exception e) {
-            throw new GeminiException("Failed to parse Gemini recommendation response: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Generates specific, actionable, phased recommendations for ALL top risk
-     * categories of an already-assessed project in a SINGLE Gemini call — one
-     * prompt, one JSON response. Cuts recommendation generation from one
-     * request per category down to one request total (a quota and latency win).
-     *
-     * @param topCategories the top-ranked categories (name, score, reason),
-     *                      ranked highest risk first
-     * @param project       the project the risk assessment was generated for
-     * @param swot          the overall SWOT from the risk assessment
-     * @return the cleaned JSON text Gemini returned (one {@code recommendations}
-     *         array covering every category) — callers parse it into DTOs
-     */
     public String generateCombinedRecommendations(
             List<RecommendationRanker.RankedCategory> topCategories,
             Project project,
@@ -161,54 +174,6 @@ public class GeminiService {
         String prompt = buildCombinedRecommendationPrompt(topCategories, project, swot);
         String rawJson = callGemini(prompt);
         return stripMarkdown(rawJson);
-    }
-
-    private String buildRecommendationPrompt(
-            Project project, String category, Double score, String reason,
-            RiskAssessmentResponseDTO.SwotDTO swot) {
-        String budgetText = project.getBudget() != null ? "₹" + project.getBudget() : "Not specified";
-        String categoryLabel = capitalize(category) + " Risk";
-
-        return """
-                You are a startup risk mitigation strategist. The risk assessment for the project below has already been completed. Your task is to produce SPECIFIC, ACTIONABLE recommendations that directly address the single highest-priority risk category given below.
-
-                Project details:
-                - Industry: %s
-                - Business Model: %s
-                - Target Market: %s
-                - Budget: %s
-                - Description: %s
-
-                Risk category to address: %s (score %s/100)
-                Reason the assessor gave for this risk: %s
-
-                Overall SWOT of the project (your recommendations must not contradict identified strengths):
-                %s
-
-                STRICT REQUIREMENTS:
-                1. Recommendations must be specific and actionable for THIS exact project - reference the actual budget, industry, scope, and target market given above. Do NOT give generic advice such as "improve marketing", "hire a team", or "raise more funding" without grounding it in this project's specifics.
-                2. Do not repeat or summarize the risk reason above. Only NEW, concrete guidance on what to do about the risk.
-                3. Each recommendation must include a realistic mitigation strategy explaining HOW to execute it.
-                4. Assign each recommendation a phase: "Immediate" (action within the next week), "Next 30 Days", or "Next Quarter".
-                5. Return ONLY valid JSON - no markdown, no code fences, no preamble. Exactly a JSON array of 1-2 objects in this shape:
-                [
-                  {
-                    "recommendation": "<specific actionable recommendation>",
-                    "mitigation": "<concrete mitigation strategy>",
-                    "phase": "Immediate|Next 30 Days|Next Quarter"
-                  }
-                ]
-                """
-                .formatted(
-                        project.getProjectType() != null ? project.getProjectType() : "Not specified",
-                        project.getBusinessModel() != null ? project.getBusinessModel() : "Not specified",
-                        project.getTargetMarket() != null ? project.getTargetMarket() : "Not specified",
-                        budgetText,
-                        project.getDescription() != null ? project.getDescription() : "Not specified",
-                        categoryLabel,
-                        score != null ? score : "N/A",
-                        reason != null ? reason : "Not available",
-                        swotText(swot));
     }
 
     private String buildCombinedRecommendationPrompt(
@@ -295,8 +260,12 @@ public class GeminiService {
         return Character.toUpperCase(value.charAt(0)) + value.substring(1);
     }
 
-    @SuppressWarnings("unchecked")
     public String callGemini(String prompt) {
+        return callGemini(prompt, apiKey);
+    }
+
+    @SuppressWarnings("unchecked")
+    public String callGemini(String prompt, String apiKeyToUse) {
 
         Map<String, Object> requestBody = Map.of(
                 "contents", List.of(
@@ -305,15 +274,15 @@ public class GeminiService {
                                         Map.of("text", prompt)))));
 
         Map<String, Object> response = webClient.post()
-                .uri(apiUrl + "?key=" + apiKey)
+                .uri(apiUrl + "?key=" + apiKeyToUse)
                 .header("Content-Type", "application/json")
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(Map.class)
                 .retryWhen(
                         reactor.util.retry.Retry
-                                .backoff(2, java.time.Duration.ofSeconds(1))
-                                .maxBackoff(java.time.Duration.ofSeconds(4))
+                                .backoff(3, java.time.Duration.ofSeconds(1))
+                                .maxBackoff(java.time.Duration.ofSeconds(8))
                                 .filter(throwable ->
                                         throwable instanceof org.springframework.web.reactive.function.client.WebClientResponseException.ServiceUnavailable))
                 .onErrorMap(

@@ -24,15 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Recommendation &amp; Mitigation Engine. Runs after a risk assessment exists for
- * a project: ranks the five risk categories by score, targets the top three,
- * and asks Gemini — in a single combined call — for specific, phased
- * recommendations covering all three categories. It reuses the persisted
- * {@link Prediction} + {@link SwotAnalysis} output of the risk assessment
- * (never re-calls the ML service) and stores results in the
- * {@code recommendations} table.
- */
 @Service
 public class RecommendationService {
 
@@ -44,20 +35,20 @@ public class RecommendationService {
     private final PredictionRepository predictionRepository;
     private final SwotAnalysisRepository swotAnalysisRepository;
     private final RecommendationRepository recommendationRepository;
-    private final GeminiService geminiService;
+    private final LangGraphClient langGraphClient;
     private final ObjectMapper objectMapper;
 
     public RecommendationService(ProjectRepository projectRepository,
                                  PredictionRepository predictionRepository,
                                  SwotAnalysisRepository swotAnalysisRepository,
                                  RecommendationRepository recommendationRepository,
-                                 GeminiService geminiService,
+                                 LangGraphClient langGraphClient,
                                  ObjectMapper objectMapper) {
         this.projectRepository = projectRepository;
         this.predictionRepository = predictionRepository;
         this.swotAnalysisRepository = swotAnalysisRepository;
         this.recommendationRepository = recommendationRepository;
-        this.geminiService = geminiService;
+        this.langGraphClient = langGraphClient;
         this.objectMapper = objectMapper;
     }
 
@@ -76,9 +67,9 @@ public class RecommendationService {
 
         List<RecommendationRanker.RankedCategory> top = RecommendationRanker.selectTopThree(breakdown);
 
-        // One Gemini call covers all top categories — quota-light and fast.
-        String rawResponse = geminiService.generateCombinedRecommendations(top, project, swotData);
-        List<GeminiRecommendationDTO> results = parseRecommendationsResponse(rawResponse);
+        // The 2-node LangGraph agent (analyze -> sequence, inside the Python
+        // ml-service) covers all top categories and phases them in one flow.
+        List<GeminiRecommendationDTO> results = langGraphClient.generateRecommendations(top, project, swotData);
 
         Map<String, String> priorityByCategory = new HashMap<>();
         for (int i = 0; i < top.size(); i++) {

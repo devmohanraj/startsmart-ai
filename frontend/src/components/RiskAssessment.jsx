@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import ProjectSelector from "./ProjectSelector";
 import ProjectCatalog from "./ProjectCatalog";
 import AuthGateMessage from "./AuthGateMessage";
@@ -378,6 +378,13 @@ function RiskAssessment({
   const [isGenerating, setIsGenerating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
+  // Ref-based guard so React StrictMode's double-invoke (or any re-render)
+  // cannot trigger a second concurrent network call. Refs (not state) keep the
+  // guard value stable across the double-invoke closure timing.
+  const fetchInProgressRef = useRef(false);
+  const hasFetchedRef = useRef(false);
+  const lastFetchKeyRef = useRef(null);
+
   // Popup only shows while the ML + Gemini generation (POST) is running —
   // never while merely fetching an already-generated assessment from the DB (GET).
   const showPopup = isGenerating;
@@ -404,52 +411,87 @@ function RiskAssessment({
   useEffect(() => {
     if (!projectId) return;
     if (riskAssessmentCache[projectId]) return;
-    let cancelled = false;
 
-    fetchAssessment(projectId, "GET")
-      .then((cached) => {
-        if (!cancelled) {
-          setData(cached);
-          setError("");
-          setLoading(false);
-          setIsGenerating(false);
-          onAssessmentLoaded?.(projectId, cached);
-        }
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        if (err.message === "NOT_FOUND") {
-          // Fresh ML + Gemini generation is running — the popup stays visible
-          setIsGenerating(true);
-          fetchAssessment(projectId, "POST")
-            .then((generated) => {
-              if (!cancelled) {
-                setData(generated);
-                setLoading(false);
-                onAssessmentLoaded?.(projectId, generated);
-              }
-            })
-            .catch((postErr) => {
-              if (cancelled) return;
-              setError(postErr.message);
-              setLoading(false);
-              if (/Request failed with status (500|502|503)/.test(postErr.message)) {
-                setIsPolling(true);
-              }
-            })
-            .finally(() => {
-              if (!cancelled) setIsGenerating(false);
-            });
-        } else {
-          setError(err.message);
-          setLoading(false);
-          setIsGenerating(false);
-        }
-      });
+    // Reset the once-guard when the logical fetch key changes: the user either
+    // switched projects (projectId) or explicitly retried (reloadKey). Only a
+    // genuine key change should allow a fresh fetch.
+    const fetchKey = `${projectId}:${reloadKey}`;
+    if (lastFetchKeyRef.current !== fetchKey) {
+      lastFetchKeyRef.current = fetchKey;
+      fetchInProgressRef.current = false;
+      hasFetchedRef.current = false;
+    }
 
-    return () => {
-      cancelled = true;
+    // Ensure only one real init (GET-then-POST) runs per project mount/retry.
+    // A second invocation (StrictMode double-invoke or re-render) must skip
+    // instead of firing another network call.
+    if (fetchInProgressRef.current || hasFetchedRef.current) {
+      return; // already fetching or already fetched for this project — skip
+    }
+
+    // Mark the whole GET-then-POST-fallback sequence as in-flight BEFORE any
+    // network call fires. It stays true for the ENTIRE cycle (not just the GET),
+    // and is only released once the awaited sequence below fully resolves.
+    fetchInProgressRef.current = true;
+
+    // A cycle is "current" only while it still belongs to the same composite
+    // fetch key (projectId + reloadKey) that the most recent effect invocation
+    // started a fetch for. Re-checking via the ref (instead of a per-closure
+    // `cancelled` boolean) lets the in-flight cycle survive StrictMode's
+    // teardown + re-invoke of the SAME composite key — which is what keeps the
+    // Retry button (reloadKey increment) as well as the POST fallback working —
+    // while still preventing a stale in-flight cycle from a genuinely
+    // switched-away project or retired key from clobbering fresh state.
+    const myFetchKey = fetchKey;
+    const isCurrentCycle = () => lastFetchKeyRef.current === myFetchKey;
+
+    const runFetchCycle = async () => {
+      try {
+        let result = null;
+        try {
+          result = await fetchAssessment(projectId, "GET");
+        } catch (err) {
+          if (err?.message !== "NOT_FOUND") {
+            if (!isCurrentCycle()) return;
+            setError(err?.message);
+            setLoading(false);
+            setIsGenerating(false);
+            return;
+          }
+          // No cached assessment — fresh ML + Gemini generation (POST) is part
+          // of this SAME logical fetch cycle, so the popup stays visible while
+          // it runs. It is NOT gated by the once-guard refs here.
+          if (isCurrentCycle()) setIsGenerating(true);
+          try {
+            result = await fetchAssessment(projectId, "POST");
+          } catch (postErr) {
+            if (!isCurrentCycle()) return;
+            setError(postErr.message);
+            setLoading(false);
+            setIsGenerating(false);
+            if (/Request failed with status (500|502|503)/.test(postErr.message)) {
+              setIsPolling(true);
+            }
+            return;
+          }
+        }
+        if (!isCurrentCycle()) return;
+        setData(result);
+        setError("");
+        setLoading(false);
+        setIsGenerating(false);
+        onAssessmentLoaded?.(projectId, result);
+      } finally {
+        // The GET and its optional POST fallback together form ONE logical fetch
+        // cycle, so the refs are only released once the ENTIRE sequence resolves
+        // — never after the GET alone. hasFetchedRef is likewise only set once
+        // the full cycle (including the POST fallback, if it ran) completes.
+        fetchInProgressRef.current = false;
+        hasFetchedRef.current = true;
+      }
     };
+
+    void runFetchCycle();
   }, [projectId, reloadKey, fetchAssessment, riskAssessmentCache, onAssessmentLoaded]);
 
   // Poll while a server-side generation is being retried
@@ -727,7 +769,7 @@ function RiskAssessment({
               <CardHeader title="Project Feasibility" icon={<FeasibilityIcon />} />
               <div className="px-5 py-4 flex flex-col items-center text-center">
                 <RingGauge value={feasibility} size={128} stroke={11} color="#6366f1" subLabel="% feasible" />
-                <div className="mt-3 w-full rounded-xl bg-gray-900/40 border border-gray-700/30 p-3.5 text-center">
+                <div className="mt-4 w-full rounded-xl bg-gray-900/40 border border-gray-700/30 p-3.5 text-center">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Feasibility Verdict</p>
                   <p className="text-sm text-gray-200 leading-relaxed">
                     {data?.feasibilityVerdict || "No feasibility verdict provided."}

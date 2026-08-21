@@ -1,22 +1,39 @@
-{"properties": [
-  {
-    "name": "gemini.api.key",
-    "type": "java.lang.String",
-    "description": "A description for 'gemini.api.key'"
-  },
-  {
-    "name": "gemini.api.url",
-    "type": "java.lang.String",
-    "description": "A description for 'gemini.api.url'"
-  },
-  {
-    "name": "cors.allowed-origins",
-    "type": "java.lang.String",
-    "description": "A description for 'cors.allowed-origins'"
-  },
-  {
-    "name": "ml.service.url",
-    "type": "java.lang.String",
-    "description": "A description for 'ml.service.url'"
-  }
-]}
+{
+  "properties": [
+    {
+      "name": "gemini.api.key",
+      "type": "java.lang.String",
+      "description": "A description for 'gemini.api.key'"
+    },
+    {
+      "name": "gemini.api.url",
+      "type": "java.lang.String",
+      "description": "A description for 'gemini.api.url'"
+    },
+    {
+      "name": "cors.allowed-origins",
+      "type": "java.lang.String",
+      "description": "A description for 'cors.allowed-origins'"
+    },
+    {
+      "name": "ml.service.url",
+      "type": "java.lang.String",
+      "description": "A description for 'ml.service.url'"
+    },
+    {
+      "name": "groq.api.key",
+      "type": "java.lang.String",
+      "description": "Groq API key used for risk assessment LLM calls."
+    },
+    {
+      "name": "groq.api.url",
+      "type": "java.lang.String",
+      "description": "Groq chat completions endpoint (OpenAI-compatible)."
+    },
+    {
+      "name": "groq.model",
+      "type": "java.lang.String",
+      "description": "Groq model used for risk assessment generation."
+    }
+  ]
+}

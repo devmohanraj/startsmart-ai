@@ -11,6 +11,10 @@ import RiskAssessment from './components/RiskAssessment';
 import Dashboard from './components/Dashboard';
 import './index.css';
 
+if ('scrollRestoration' in window.history) {
+  window.history.scrollRestoration = 'manual';
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState('Project Input');
   const [submittedProject, setSubmittedProject] = useState(null);
@@ -89,8 +93,8 @@ function App() {
   };
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [submittedProject]);
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [activeTab, submittedProject]);
 
   const handleAnalysisComplete = useCallback(() => {
     setIsAnalyzing(false);

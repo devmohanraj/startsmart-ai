@@ -6,6 +6,11 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 import shap
 
+from dotenv import load_dotenv
+load_dotenv()
+
+from langgraph_recommendations import run_recommendation_graph
+
 app = FastAPI(
     title="StartSmart AI - Risk Prediction Service",
     description=(
@@ -79,6 +84,14 @@ class PredictionResponse(BaseModel):
     risk_level: str
     top_risk_factors: list[RiskFactor]
     confidence_note: str | None = None
+
+
+class RecommendationRequest(BaseModel):
+    """Input to the LangGraph recommendation agent — mirrors RecommendationState
+    minus the two output fields populated by the graph nodes."""
+    top_categories: list[dict] | None = None
+    project_context: dict | None = None
+    swot: dict | None = None
 
 
 def encode_input(project: ProjectFeatures) -> tuple[pd.DataFrame, float]:
@@ -156,3 +169,32 @@ def predict(project: ProjectFeatures):
         top_risk_factors=top_risk_factors,
         confidence_note=confidence_note,
     )
+
+
+@app.post("/langgraph/recommendations")
+def langgraph_recommendations(request: RecommendationRequest):
+    """Runs the 2-node LangGraph recommendation agent (analyze -> sequence) and
+    returns the phased roadmap. Called by Spring Boot's RecommendationService."""
+    if (
+        request.top_categories is None
+        or request.project_context is None
+        or request.swot is None
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="top_categories, project_context, and swot are required",
+        )
+
+    try:
+        final_roadmap = run_recommendation_graph(
+            request.top_categories,
+            request.project_context,
+            request.swot,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Recommendation graph failed: {e}",
+        )
+
+    return {"recommendations": final_roadmap}

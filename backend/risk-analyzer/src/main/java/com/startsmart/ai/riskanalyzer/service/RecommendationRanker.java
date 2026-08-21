@@ -6,15 +6,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * Pure deterministic helper that ranks the five risk categories by score
- * (descending) and picks the top three that the recommendation engine should
- * target. Ties keep the canonical category order (financial, market,
- * technical, operational, execution).
- *
- * Kept as a standalone utility (no Spring dependencies) so the ranking math
- * is trivially unit-testable without mocking Gemini.
- */
 public final class RecommendationRanker {
 
     private RecommendationRanker() {

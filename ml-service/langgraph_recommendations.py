@@ -1,0 +1,300 @@
+"""LangGraph-based two-node recommendation agent for StartSmart AI.
+
+The Java backend (RecommendationService) ranks the five risk categories and
+ships the top three plus project context + SWOT here. Two nodes run inside a
+single compiled graph:
+
+  Node 1 "analyze"   — asks Gemini for specific, actionable recommendations
+                       (riskCategory, recommendation, mitigation) covering all
+                       top categories in one JSON array.
+  Node 2 "sequence"  — asks Gemini to assign each recommendation a phase
+                       (Immediate / Next 30 Days / Next Quarter) while reasoning
+                       about dependencies, producing the final roadmap.
+
+The graph is compiled once at module load (not per request) and re-invoked for
+every request. The Gemini key is read from the same GEMINI_API_KEY environment
+variable the Spring Boot prod profile uses for gemini.api.key.
+"""
+
+import json
+import os
+
+from langchain_core.messages import HumanMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langgraph.graph import StateGraph
+from typing_extensions import TypedDict
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+print(f"DEBUG: GEMINI_API_KEY loaded as: {repr(GEMINI_API_KEY)}")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL")
+
+PHASES = ("Immediate", "Next 30 Days", "Next Quarter")
+
+
+class RecommendationState(TypedDict):
+    # Inputs (from Spring Boot)
+    top_categories: list  # [{category, score, reason}, ...]
+    project_context: dict  # {budget, industry, target_market, description}
+    swot: dict  # {strengths, weaknesses, opportunities, threats}
+    # Outputs (populated by the nodes)
+    raw_recommendations: list  # Node 1 -> {riskCategory, recommendation, mitigation}
+    final_roadmap: list  # Node 2 -> same fields plus phase
+
+
+# ---------------------------------------------------------------
+# Gemini plumbing (one retry on failure, then a clear error naming the node)
+# ---------------------------------------------------------------
+def _build_llm() -> ChatGoogleGenerativeAI:
+    api_key = GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY environment variable is not set")
+    return ChatGoogleGenerativeAI(
+        model=GEMINI_MODEL,
+        google_api_key=api_key,
+        temperature=0.7,
+    )
+
+
+def _call_gemini(prompt: str) -> str:
+    """Calls Gemini; retries once on failure, then raises a RuntimeError whose
+    message includes the underlying cause. Node identification is added by the
+    node wrappers, and the raise happens outside the except handler so the
+    exception carries no implicit __context__ (LangGraph preserves the
+    top-level message exactly).
+    """
+    llm = _build_llm()
+    last_error = None
+    for _ in range(2):
+        try:
+            response = llm.invoke([HumanMessage(content=prompt)])
+            text = getattr(response, "content", None)
+
+            # Handle the case where content is a list of content blocks
+            # (e.g. [{'type': 'text', 'text': '...'}]) instead of a plain string
+            if isinstance(text, list):
+                extracted = []
+                for block in text:
+                    if isinstance(block, dict) and "text" in block:
+                        extracted.append(block["text"])
+                    elif isinstance(block, str):
+                        extracted.append(block)
+                text = "".join(extracted)
+
+            if text is None or (isinstance(text, str) and not text.strip()):
+                raise ValueError("Gemini returned an empty response")
+            return text
+        except Exception as exc:  # noqa: BLE001 — must surface node-level error
+            last_error = exc
+    raise RuntimeError(f"Gemini call failed after 1 retry: {last_error}")
+
+
+# ---------------------------------------------------------------
+# JSON parsing helpers (mirror of GeminiService.stripMarkdown on the Java side)
+# ---------------------------------------------------------------
+def _strip_markdown(text: str) -> str:
+    text = (text or "").strip()
+    had_fence = False
+    if text.startswith("```json"):
+        text = text[len("```json"):]
+        had_fence = True
+    elif text.startswith("```"):
+        text = text[len("```"):]
+        had_fence = True
+    if had_fence and text.endswith("```"):
+        text = text[: -len("```")]
+    return text.strip()
+
+
+def _parse_json_array(text: str) -> list:
+    # The raise happens after the except block so no implicit __context__ is
+    # captured (LangGraph preserves the top-level message only).
+    error = None
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        error = (
+            f"Gemini returned unparseable JSON: {exc}. "
+            f"Raw output: {text[:500]}"
+        )
+    if error:
+        raise RuntimeError(error)
+    if not isinstance(parsed, list):
+        raise RuntimeError(
+            f"Expected a JSON array, got {type(parsed).__name__}"
+        )
+    return parsed
+
+
+# ---------------------------------------------------------------
+# Prompt text helpers (mirror RecommendationService/GeminiService conventions)
+# ---------------------------------------------------------------
+def _capitalize(value: str) -> str:
+    value = (value or "").strip()
+    return value[:1].upper() + value[1:] if value else value
+
+
+def _join_list(items) -> str:
+    if not items:
+        return "None"
+    return "; ".join(str(item) for item in items)
+
+
+def _categories_text(state: RecommendationState) -> str:
+    top = state.get("top_categories") or []
+    if not top:
+        return "None"
+    lines = []
+    for c in top:
+        label = _capitalize(c.get("category", "Unknown")) + " Risk"
+        score = c.get("score")
+        score_text = f"{score}/100" if score is not None else "N/A"
+        reason = c.get("reason") or "Not available"
+        lines.append(f"- {label} (score {score_text}): {reason}")
+    return "\n".join(lines)
+
+
+def _swot_text(state: RecommendationState) -> str:
+    swot = state.get("swot") or {}
+    return (
+        f"Strengths: {_join_list(swot.get('strengths'))}\n"
+        f"Weaknesses: {_join_list(swot.get('weaknesses'))}\n"
+        f"Opportunities: {_join_list(swot.get('opportunities'))}\n"
+        f"Threats: {_join_list(swot.get('threats'))}"
+    )
+
+
+def _project_context_text(state: RecommendationState) -> str:
+    ctx = state.get("project_context") or {}
+    budget = ctx.get("budget")
+    budget_text = f"₹{budget}" if budget not in (None, "") else "Not specified"
+    return (
+        f"- Industry: {ctx.get('industry') or 'Not specified'}\n"
+        f"- Target Market: {ctx.get('target_market') or 'Not specified'}\n"
+        f"- Budget: {budget_text}\n"
+        f"- Description: {ctx.get('description') or 'Not specified'}"
+    )
+
+
+# ---------------------------------------------------------------
+# Node 1 — analyze_and_recommend
+# ---------------------------------------------------------------
+def _build_analyze_prompt(state: RecommendationState) -> str:
+    category_count = len(state.get("top_categories") or [])
+    return f"""You are a startup risk mitigation strategist. The risk assessment for the project below has already been completed. Your task is to produce SPECIFIC, ACTIONABLE recommendations that address the top risk categories listed below — all in a SINGLE response covering every listed category.
+
+Project details:
+{_project_context_text(state)}
+
+Top risk categories to address (ranked highest first):
+{_categories_text(state)}
+
+Overall SWOT of the project (your recommendations must not contradict identified strengths):
+{_swot_text(state)}
+
+STRICT REQUIREMENTS:
+1. Produce 1-2 recommendations for EACH of the {category_count} risk categories listed above, all inside ONE JSON array.
+2. Recommendations must be specific and actionable for THIS exact project - reference the actual budget, industry, scope, and target market given above. Do NOT give generic advice such as "improve marketing", "hire a team", or "raise more funding" without grounding it in this project's specifics.
+3. Do not repeat or summarize the risk reasons above. Only NEW, concrete guidance on what to do about each risk.
+4. Each recommendation must include a realistic mitigation strategy explaining HOW to execute it.
+5. Return ONLY valid JSON - no markdown, no code fences, no preamble. Exactly a JSON array of objects in this shape:
+[
+  {{
+    "riskCategory": "<exact category key: financial|market|technical|operational|execution>",
+    "recommendation": "<specific actionable recommendation>",
+    "mitigation": "<concrete mitigation strategy>"
+  }}
+]
+Include at least one entry for every risk category listed above, and set the "riskCategory" field to the EXACT category key you were given for it."""
+
+
+def analyze_and_recommend(state: RecommendationState) -> dict:
+    error = None
+    recommendations = None
+    try:
+        prompt = _build_analyze_prompt(state)
+        raw = _call_gemini(prompt)
+        cleaned = _strip_markdown(raw)
+        recommendations = _parse_json_array(cleaned)
+    except Exception as exc:  # noqa: BLE001 — must surface node-level error
+        error = exc
+    if error is not None:
+        # Raised outside the except handler: no implicit __context__, so
+        # LangGraph surfaces this exact node-identifying message.
+        raise RuntimeError(f"Node 1 (analyze) failed: {error}")
+    return {"raw_recommendations": recommendations}
+
+
+# ---------------------------------------------------------------
+# Node 2 — sequence_into_roadmap
+# ---------------------------------------------------------------
+# ---------------------------------------------------------------
+def _build_sequence_prompt(state: RecommendationState) -> str:
+    raw = state.get("raw_recommendations") or []
+    recommendations_json = json.dumps(raw, indent=2, ensure_ascii=False)
+    return f"""You are a startup roadmap planner. Below is a flat list of risk-mitigation recommendations (already generated for this project) that need to be phased.
+
+Overall SWOT of the project (your recommendations must not contradict identified strengths):
+{_swot_text(state)}
+
+Recommendations to phase:
+{recommendations_json}
+
+STRICT REQUIREMENTS:
+1. Assign each recommendation EXACTLY one phase: "Immediate" (action within the next week), "Next 30 Days", or "Next Quarter".
+2. Reason about dependencies between recommendations when choosing phases: do NOT schedule something "Immediate" if it logically depends on another recommendation being completed first. Sequence dependent work before its dependents.
+3. Where dependencies allow it, distribute the recommendations evenly across the three phases — aim for one recommendation per phase rather than clustering multiple into a single phase, unless the dependency reasoning above genuinely requires otherwise.
+4. Keep every existing field (riskCategory, recommendation, mitigation) exactly as provided — change nothing but add the phase field.
+5. Return ONLY valid JSON - no markdown, no code fences, no preamble. Exactly a JSON array with the SAME number of entries as the input, one per recommendation, in this shape:
+[
+  {{
+    "riskCategory": "<unchanged category key>",
+    "recommendation": "<unchanged recommendation text>",
+    "mitigation": "<unchanged mitigation strategy>",
+    "phase": "Immediate|Next 30 Days|Next Quarter"
+  }}
+]"""
+
+def sequence_into_roadmap(state: RecommendationState) -> dict:
+    error = None
+    roadmap = None
+    try:
+        prompt = _build_sequence_prompt(state)
+        raw = _call_gemini(prompt)
+        cleaned = _strip_markdown(raw)
+        roadmap = _parse_json_array(cleaned)
+    except Exception as exc:  # noqa: BLE001 — must surface node-level error
+        error = exc
+    if error is not None:
+        # Raised outside the except handler: no implicit __context__, so
+        # LangGraph surfaces this exact node-identifying message.
+        raise RuntimeError(f"Node 2 (sequence) failed: {error}")
+    return {"final_roadmap": roadmap}
+
+
+# ---------------------------------------------------------------
+# Graph construction — compiled once at module load
+# ---------------------------------------------------------------
+def _build_graph():
+    workflow = StateGraph(RecommendationState)
+    workflow.add_node("analyze", analyze_and_recommend)
+    workflow.add_node("sequence", sequence_into_roadmap)
+    workflow.set_entry_point("analyze")
+    workflow.add_edge("analyze", "sequence")
+    workflow.set_finish_point("sequence")
+    return workflow.compile()
+
+
+compiled_graph = _build_graph()
+
+
+def run_recommendation_graph(top_categories, project_context, swot) -> list:
+    """Runs both graph nodes and returns the final phased roadmap (a JSON list)."""
+    initial_state: RecommendationState = {
+        "top_categories": top_categories,
+        "project_context": project_context,
+        "swot": swot,
+        "raw_recommendations": [],
+        "final_roadmap": [],
+    }
+    result = compiled_graph.invoke(initial_state)
+    return result["final_roadmap"]

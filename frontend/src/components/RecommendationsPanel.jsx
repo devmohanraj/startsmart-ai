@@ -16,6 +16,12 @@ const CATEGORY_LABELS = {
   execution: "Execution",
 };
 
+const EMPTY_PHASE_TEXT = {
+  Immediate: "No immediate actions identified",
+  "Next 30 Days": "No actions identified for the next 30 days",
+  "Next Quarter": "No actions identified for next quarter",
+};
+
 function priorityTheme(priority) {
   return PRIORITY_THEME[priority] || PRIORITY_THEME.Low;
 }
@@ -160,7 +166,7 @@ function RecommendationsPanel({ projectId, riskData, cachedData, onCache }) {
   const grouped = PHASES.map((phase) => ({
     phase,
     items: (recommendations || []).filter((r) => (r.phase || "Next 30 Days") === phase),
-  })).filter((g) => g.items.length > 0);
+  }));
 
   return (
     <div className="bg-gray-800/50 rounded-2xl border border-gray-700/50 shadow-sm">
@@ -193,7 +199,7 @@ function RecommendationsPanel({ projectId, riskData, cachedData, onCache }) {
               recommendations are ready.
             </p>
           </div>
-        ) : grouped.length === 0 ? (
+        ) : recommendations === null ? (
           <div className="text-center py-6">
             <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto mb-3">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -205,19 +211,24 @@ function RecommendationsPanel({ projectId, riskData, cachedData, onCache }) {
             </p>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
             {grouped.map(({ phase, items }) => (
-              <div key={phase}>
+              <div key={phase} className="flex flex-col h-full min-h-0">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-xs font-bold uppercase tracking-wider text-gray-200">{phase}</span>
                   <span className="h-px flex-1 bg-gray-700/50" />
-                  <span className="text-[11px] text-gray-500">{items.length}</span>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {items.map((item) => (
-                    <RecommendationCard key={item.id} item={item} />
-                  ))}
-                </div>
+                {items.length > 0 ? (
+                  <div className="flex flex-col gap-3">
+                    {items.map((item) => (
+                      <RecommendationCard key={item.id} item={item} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-gray-700/50 p-4 text-center text-xs text-gray-500">
+                    {EMPTY_PHASE_TEXT[phase] || `No ${phase.toLowerCase()} actions identified`}
+                  </div>
+                )}
               </div>
             ))}
           </div>

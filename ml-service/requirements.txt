@@ -7,3 +7,5 @@ xgboost
 shap
 joblib
 pydantic
+langgraph
+langchain-google-genai

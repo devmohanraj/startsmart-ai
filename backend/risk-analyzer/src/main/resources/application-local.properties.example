@@ -20,6 +20,14 @@ gemini.api.key=your_gemini_api_key_here
 gemini.api.url=gemini_api_url_here
 
 # ---------------------------------------
+# Groq AI API Configuration (Risk Assessment)
+# ---------------------------------------
+# Get your API key from: https://console.groq.com/
+groq.api.url=https://api.groq.com/openai/v1/chat/completions
+groq.api.key=your_groq_api_key_here
+groq.model=llama-3.3-70b-versatile
+
+# ---------------------------------------
 # FastAPI ML Service Configuration
 # ---------------------------------------
 # Base URL of the FastAPI risk prediction service (defaults to local)

@@ -59,9 +59,9 @@ public class RiskAssessmentService {
         // Step 1: Call the FastAPI ML service -> Financial Risk baseline (real historical data)
         MlPredictionResponseDTO mlPrediction = callMlService(project);
 
-        // Step 2: Call Gemini to reason over Market / Technical / Operational / Execution risk,
+        // Step 2: Call Groq to reason over Market / Technical / Operational / Execution risk,
         // anchored on the ML financial baseline so the five scores stay internally consistent
-        GeminiRiskResponseDTO geminiData = callGeminiRiskAnalysis(project, mlPrediction);
+        GeminiRiskResponseDTO geminiData = callGroqRiskAnalysis(project, mlPrediction);
 
         // Step 3: Assemble the five-category breakdown and combine into the weighted Overall Risk Score
         RiskAssessmentResponseDTO.RiskBreakdownDTO riskBreakdown = buildRiskBreakdown(project, mlPrediction, geminiData);
@@ -121,18 +121,18 @@ public class RiskAssessmentService {
     }
 
     // ---------------------------------------------------------------
-    // Gemini call \u2014 four AI-reasoned risk categories anchored on the
+    // Groq call - four AI-reasoned risk categories anchored on the
     // ML financial baseline
     // ---------------------------------------------------------------
-    private GeminiRiskResponseDTO callGeminiRiskAnalysis(Project project, MlPredictionResponseDTO mlPrediction) {
+    private GeminiRiskResponseDTO callGroqRiskAnalysis(Project project, MlPredictionResponseDTO mlPrediction) {
         String prompt = buildRiskPrompt(project, mlPrediction);
-        String rawJson = geminiService.callGemini(prompt);
+        String rawJson = geminiService.callGroq(prompt);
         String cleaned = stripMarkdown(rawJson);
 
         try {
             return objectMapper.readValue(cleaned, GeminiRiskResponseDTO.class);
         } catch (Exception e) {
-            throw new GeminiService.GeminiException("Failed to parse Gemini risk response: " + e.getMessage(), e);
+            throw new GeminiService.GeminiException("Failed to parse Groq risk response: " + e.getMessage(), e);
         }
     }
 
@@ -168,7 +168,7 @@ public class RiskAssessmentService {
                 For hardware, manufacturing, logistics-heavy, inventory-heavy, or infrastructure-heavy projects: require higher budget adequacy and increase risk only when the budget truly cannot support the required MVP.
                 Do not cluster scores in the middle range. Use: 0-20 = very low risk; 21-40 = low risk; 41-60 = moderate risk; 61-80 = high risk; 81-100 = severe risk. Only give 60+ risk scores when there are specific, explainable problems.
 
-                Return ONLY valid JSON, no markdown, no preamble, in EXACTLY this structure:
+                Your ENTIRE response MUST be a single valid JSON object. No markdown, no code fences (never wrap the JSON in ```json or any code fence), no preamble, no commentary before or after the JSON, no trailing text. Use ONLY the exact snake_case keys shown below. Every key is REQUIRED - do not omit any key, do not add any extra key, and keep every string value inside double quotes.
 
                 {
                   "budget_adequacy": {
@@ -191,7 +191,7 @@ public class RiskAssessmentService {
                     "score": <0-100>,
                     "reason": "<1-2 sentences citing the actual plan/target market given>"
                   },
-                  "risk_narrative": "<2-3 sentences synthesizing WHY the overall risk profile is what it is, referencing the Financial Risk baseline AND the strongest 1-2 factors from the four Gemini-scored categories above \u2014 write this as one coherent paragraph, not a list>",
+                  "risk_narrative": "<2-3 sentences synthesizing WHY the overall risk profile is what it is, referencing the Financial Risk baseline AND the strongest 1-2 factors from the four AI-scored categories above \u2014 write this as one coherent paragraph, not a list>",
                   "swot": {
                     "strengths": ["...", "...", "...", "..."],
                     "weaknesses": ["...", "...", "...", "..."],
@@ -207,6 +207,47 @@ public class RiskAssessmentService {
                     "market_opportunity": <0-100>,
                     "execution_readiness": <0-100>,
                     "scalability_potential": <0-100>
+                  }
+                }
+
+                Here is a concrete example of that exact shape. Use it ONLY as a structural reference - replace the example values with your analysis of THIS project:
+                {
+                  "budget_adequacy": {
+                    "score": 75,
+                    "reasoning": "The stated budget is realistic for a focused software MVP and comfortably covers reaching a testable version."
+                  },
+                  "market_risk": {
+                    "score": 45,
+                    "reason": "The target market is crowded, but the project's focused niche positioning limits the threat."
+                  },
+                  "technical_risk": {
+                    "score": 30,
+                    "reason": "The solution can be built on existing cloud services and open-source components."
+                  },
+                  "operational_risk": {
+                    "score": 50,
+                    "reason": "The lean team covers core operations today, but scaling will require additional hires."
+                  },
+                  "execution_risk": {
+                    "score": 35,
+                    "reason": "A phased roadmap with a clearly defined MVP keeps the delivery plan realistic."
+                  },
+                  "risk_narrative": "The financial baseline is moderate, and the four AI-scored categories are broadly contained, resulting in a moderate overall risk profile.",
+                  "swot": {
+                    "strengths": ["focused MVP scope", "experienced founding team", "low-cost technology stack"],
+                    "weaknesses": ["lean team", "no brand awareness yet", "single revenue stream"],
+                    "opportunities": ["growing domestic market", "underserved customer segment", "potential channel partnerships"],
+                    "threats": ["better-funded competitors", "regulatory changes", "rising customer acquisition costs"]
+                  },
+                  "feasibility_verdict": "The project is feasible within the stated budget if the MVP rollout stays disciplined.",
+                  "assessment_metrics": {
+                    "financial_sustainability": 70,
+                    "team_capability": 65,
+                    "competitive_advantage": 60,
+                    "resource_availability": 55,
+                    "market_opportunity": 75,
+                    "execution_readiness": 68,
+                    "scalability_potential": 62
                   }
                 }
                 """
@@ -340,7 +381,7 @@ public class RiskAssessmentService {
         }
 
         // Financial risk on this response is the BLENDED score from the risk breakdown; the raw ML-only
-        // number is exposed separately as mlOnlyFinancialRisk, and Gemini's judgment as budgetAdequacy.
+        // number is exposed separately as mlOnlyFinancialRisk, and the LLM's judgment as budgetAdequacy.
         financialRiskScore = riskBreakdown != null && riskBreakdown.getFinancialRisk() != null
                 ? riskBreakdown.getFinancialRisk().getScore()
                 : (ml != null ? ml.getOverallRiskScore() : prediction.getOverallRiskScore());
@@ -389,9 +430,10 @@ public class RiskAssessmentService {
     }
 
     /**
-     * Blends Gemini's scope-based budget-adequacy judgment with the ML historical
-     * baseline into the Financial Risk score: 60% adequacy / 40% ML. If Gemini did
-     * not return a budget-adequacy score, the ML baseline is used unchanged.
+     * Blends the LLM's (Groq) scope-based budget-adequacy judgment with the ML
+     * historical baseline into the Financial Risk score: 60% adequacy / 40% ML.
+     * If the LLM did not return a budget-adequacy score, the ML baseline is used
+     * unchanged.
      */
     private double computeBlendedFinancialRisk(MlPredictionResponseDTO ml, GeminiRiskResponseDTO gemini) {
         double mlScore = safeDouble(ml.getOverallRiskScore());
@@ -414,9 +456,10 @@ public class RiskAssessmentService {
 
     /**
      * Financial risk is a BLEND of two independent signals: how well the submitted
-     * budget covers THIS project's specific scope (Gemini, weighted 60%) and how it
-     * compares to previously funded companies in the ML training data (40%). The raw
-     * ML-only score is kept separately as {@code mlOnlyFinancialRisk}.
+     * budget covers THIS project's specific scope (LLM judgment from the risk
+     * analysis, weighted 60%) and how it compares to previously funded companies in
+     * the ML training data (40%). The raw ML-only score is kept separately as
+     * {@code mlOnlyFinancialRisk}.
      */
     private RiskAssessmentResponseDTO.RiskCategoryDTO buildFinancialRiskCategory(
             Project project, MlPredictionResponseDTO ml, GeminiRiskResponseDTO gemini, double blendedFinancialRisk) {
@@ -429,7 +472,7 @@ public class RiskAssessmentService {
                     + " (Historical comparison: this budget is " + describeMlHistoricalRisk(safeDouble(mlScore))
                     + " \u2014 see mlOnlyFinancialRisk for that raw signal.)";
         } else {
-            reason = "Financial risk blends Gemini's scope-based budget adequacy (60%) with the ML historical "
+            reason = "Financial risk blends the LLM's scope-based budget adequacy (60%) with the ML historical "
                     + "baseline (40%). No budget-adequacy reasoning was returned; see mlOnlyFinancialRisk ("
                     + safeDouble(mlScore) + "/100) for the raw historical signal.";
         }
@@ -539,21 +582,21 @@ public class RiskAssessmentService {
         if (breakdown.getTechnicalRisk() == null && breakdown.getTechnicalRiskScore() != null) {
             breakdown.setTechnicalRisk(RiskAssessmentResponseDTO.RiskCategoryDTO.builder()
                     .score(breakdown.getTechnicalRiskScore())
-                    .reason("Technical sub-score carried over from a previous-generation assessment. Regenerate for a Gemini-grounded reason.")
+                    .reason("Technical sub-score carried over from a previous-generation assessment. Regenerate for an LLM-grounded reason.")
                     .source(SOURCE_GEMINI)
                     .build());
         }
         if (breakdown.getOperationalRisk() == null && breakdown.getOperationalRiskScore() != null) {
             breakdown.setOperationalRisk(RiskAssessmentResponseDTO.RiskCategoryDTO.builder()
                     .score(breakdown.getOperationalRiskScore())
-                    .reason("Operational sub-score carried over from a previous-generation assessment. Regenerate for a Gemini-grounded reason.")
+                    .reason("Operational sub-score carried over from a previous-generation assessment. Regenerate for an LLM-grounded reason.")
                     .source(SOURCE_GEMINI)
                     .build());
         }
         if (breakdown.getExecutionRisk() == null && breakdown.getExecutionRiskScore() != null) {
             breakdown.setExecutionRisk(RiskAssessmentResponseDTO.RiskCategoryDTO.builder()
                     .score(breakdown.getExecutionRiskScore())
-                    .reason("Execution sub-score carried over from a previous-generation assessment. Regenerate for a Gemini-grounded reason.")
+                    .reason("Execution sub-score carried over from a previous-generation assessment. Regenerate for an LLM-grounded reason.")
                     .source(SOURCE_GEMINI)
                     .build());
         }

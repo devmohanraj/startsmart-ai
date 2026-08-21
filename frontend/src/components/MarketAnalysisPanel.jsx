@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ProjectSummary from "./ProjectSummary";
 
 function Skeleton({ className = "" }) {
@@ -56,7 +56,7 @@ function MarketTrendsChart({ data, growthRate }) {
 
   return (
     <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full min-w-[300px]" preserveAspectRatio="xMidYMid meet">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full min-w-75" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#ef4444" stopOpacity="0.35" />
@@ -176,73 +176,103 @@ function MarketAnalysisPanel({
   const [isPolling, setIsPolling] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // Ref-based guard so React StrictMode's double-invoke (or any re-render)
+  // cannot trigger a second concurrent network call. Refs (not state) keep the
+  // guard value stable across the double-invoke closure timing.
+  const fetchInProgressRef = useRef(false);
+  const hasFetchedRef = useRef(false);
+  const lastProjectIdRef = useRef(null);
+
   useEffect(() => {
     if (cachedData) {
       if (onAnalysisComplete) onAnalysisComplete();
       return;
     }
 
-    let cancelled = false;
+    // Reset the once-guard when switching to a different project, so each
+    // project is eligible to fetch once. This only resets on a genuine project
+    // change, not on a StrictMode double-invoke (same projectId).
+    if (lastProjectIdRef.current !== projectId) {
+      lastProjectIdRef.current = projectId;
+      fetchInProgressRef.current = false;
+      hasFetchedRef.current = false;
+    }
 
-    fetch(`${import.meta.env.VITE_API_URL}/api/projects/${projectId}/market-analysis`, {
-      method: "GET",
-    })
-      .then(async (res) => {
+    // Ensure only ONE concurrent/duplicate INITIAL fetch cycle runs per project
+    // mount. This guard exists solely to stop StrictMode's double-invoke (or a
+    // re-render) from firing a second GET. It must NOT block the internal
+    // GET-404-then-POST fallback, which is part of the SAME logical fetch cycle
+    // and is allowed to run to completion below inside the awaited sequence.
+    if (fetchInProgressRef.current || hasFetchedRef.current) {
+      return; // already fetching or already fetched for this project — skip
+    }
+
+    // Mark the whole GET-then-POST sequence as in-flight BEFORE any network
+    // call fires. It stays true for the ENTIRE cycle (not just the GET).
+    fetchInProgressRef.current = true;
+
+    // A cycle is "current" only while it still belongs to the project the most
+    // recent effect invocation started a fetch for. Re-checking this via the ref
+    // (instead of a per-closure `cancelled` boolean) lets the in-flight cycle
+    // survive StrictMode's teardown + re-invoke of the SAME project, while still
+    // preventing a stale in-flight cycle from a genuinely-switched-away project
+    // from clobbering fresh state.
+    const myProjectId = projectId;
+    const isCurrentCycle = () => lastProjectIdRef.current === myProjectId;
+
+    const runFetchCycle = async () => {
+      try {
+        const url = `${import.meta.env.VITE_API_URL}/api/projects/${myProjectId}/market-analysis`;
+
+        // 1) Try to read already-generated analysis (GET).
+        const res = await fetch(url, { method: "GET" });
         if (res.ok) {
-          return res.json();
+          const json = await res.json();
+          if (isCurrentCycle()) {
+            setData(json);
+            setLoading(false);
+            if (onAnalysisComplete) onAnalysisComplete();
+            if (onCacheAnalysis) onCacheAnalysis(myProjectId, json);
+          }
+          return;
         }
         if (res.status === 404) {
-          throw new Error("NOT_FOUND");
+          // 2) No cached analysis — generate a fresh one via POST. This is the
+          //    intended internal fallback within this single fetch cycle, so it
+          //    is NOT a duplicate request and is never gated by the refs here.
+          const postRes = await fetch(url, { method: "POST" });
+          if (!postRes.ok) {
+            const body = await postRes.json().catch(() => null);
+            throw new Error(
+              body?.error || `Request failed with status ${postRes.status}`,
+            );
+          }
+          const json = await postRes.json();
+          if (isCurrentCycle()) {
+            setData(json);
+            setLoading(false);
+            if (onAnalysisComplete) onAnalysisComplete();
+            if (onCacheAnalysis) onCacheAnalysis(myProjectId, json);
+          }
+          return;
         }
         throw new Error(`Request failed with status ${res.status}`);
-      })
-      .then((json) => {
-        if (!cancelled) {
-          setData(json);
-          setLoading(false);
-          if (onAnalysisComplete) onAnalysisComplete();
-          if (onCacheAnalysis) onCacheAnalysis(projectId, json);
-        }
-      })
-      .catch(async (err) => {
-        if (!cancelled && err.message === "NOT_FOUND") {
-          try {
-            const postRes = await fetch(
-              `${import.meta.env.VITE_API_URL}/api/projects/${projectId}/market-analysis`,
-              {
-                method: "POST",
-              },
-            );
-            if (!postRes.ok) {
-              const body = await postRes.json().catch(() => null);
-              throw new Error(
-                body?.error || `Request failed with status ${postRes.status}`,
-              );
-            }
-            const json = await postRes.json();
-            if (!cancelled) {
-              setData(json);
-              setLoading(false);
-              if (onAnalysisComplete) onAnalysisComplete();
-              if (onCacheAnalysis) onCacheAnalysis(projectId, json);
-            }
-          } catch (postErr) {
-            if (!cancelled) {
-              setError(postErr.message);
-              setLoading(false);
-              if (onAnalysisComplete) onAnalysisComplete();
-            }
-          }
-        } else if (!cancelled) {
-          setError(err.message);
-          setLoading(false);
-          if (onAnalysisComplete) onAnalysisComplete();
-        }
-      });
-
-    return () => {
-      cancelled = true;
+      } catch (err) {
+        if (!isCurrentCycle()) return;
+        setError(err.message);
+        setLoading(false);
+        if (onAnalysisComplete) onAnalysisComplete();
+      } finally {
+        // The GET and its optional POST fallback together form ONE logical fetch
+        // cycle, so the refs are only released once the ENTIRE sequence resolves
+        // — never after the GET alone. hasFetchedRef is similarly only set once
+        // the full cycle (including the POST fallback, if it ran) completes.
+        fetchInProgressRef.current = false;
+        hasFetchedRef.current = true;
+      }
     };
+
+    void runFetchCycle();
   }, [projectId, onAnalysisComplete, cachedData, onCacheAnalysis]);
 
   useEffect(() => {
