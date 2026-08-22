@@ -8,16 +8,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Deserializes the JSON returned by Gemini for the risk assessment prompt.
+ * Deserializes the JSON returned by the LLM (Groq) for the risk assessment prompt.
  *
  * Financial risk is intentionally NOT part of this payload — it is kept
- * 100% ML-driven. Gemini reasons over the remaining four categories and
+ * 100% ML-driven. The LLM reasons over the remaining four categories and
  * anchors them to the ML financial baseline provided in the prompt, so the
  * five scores do not contradict each other.
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class GeminiRiskResponseDTO {
+public class LlmRiskResponseDTO {
 
     private SwotData swot;
 

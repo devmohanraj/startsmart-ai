@@ -17,7 +17,7 @@ app = FastAPI(
         "Predicts startup success probability, risk score, and top risk "
         "factors from Budget and Industry — the two structured, "
         "historically-validated inputs. Business model, target market, "
-        "and description are handled separately by Gemini."
+        "and description are handled separately by Groq."
     ),
     version="3.0.0",
 )

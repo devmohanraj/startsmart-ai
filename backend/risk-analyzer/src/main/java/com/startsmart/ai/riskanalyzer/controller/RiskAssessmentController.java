@@ -1,7 +1,7 @@
 package com.startsmart.ai.riskanalyzer.controller;
 
 import com.startsmart.ai.riskanalyzer.dto.RiskAssessmentResponseDTO;
-import com.startsmart.ai.riskanalyzer.service.GeminiService;
+import com.startsmart.ai.riskanalyzer.service.LlmService;
 import com.startsmart.ai.riskanalyzer.service.RiskAssessmentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -45,7 +45,7 @@ public class RiskAssessmentController {
     @GetMapping
     @Operation(summary = "Retrieve saved risk assessment",
                description = "Returns the previously generated combined risk assessment for a project, without re-calling "
-                           + "the ML service or Gemini. Use this endpoint to fetch cached results instead of re-generating.")
+                           + "the ML service or Groq. Use this endpoint to fetch cached results instead of re-generating.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Risk assessment found and returned successfully",
             content = @Content(schema = @Schema(implementation = RiskAssessmentResponseDTO.class))),
@@ -61,8 +61,8 @@ public class RiskAssessmentController {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
     }
 
-    @ExceptionHandler(GeminiService.GeminiException.class)
-    public ResponseEntity<Map<String, String>> handleGeminiError(GeminiService.GeminiException ex) {
+    @ExceptionHandler(LlmService.LlmException.class)
+    public ResponseEntity<Map<String, String>> handleLlmError(LlmService.LlmException ex) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", ex.getMessage()));
     }
 }

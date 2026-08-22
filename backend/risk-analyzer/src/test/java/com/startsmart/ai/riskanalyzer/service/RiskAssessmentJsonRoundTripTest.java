@@ -1,7 +1,7 @@
 package com.startsmart.ai.riskanalyzer.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.startsmart.ai.riskanalyzer.dto.GeminiRiskResponseDTO;
+import com.startsmart.ai.riskanalyzer.dto.LlmRiskResponseDTO;
 import com.startsmart.ai.riskanalyzer.dto.RiskAssessmentResponseDTO;
 import org.junit.jupiter.api.Test;
 
@@ -25,7 +25,7 @@ class RiskAssessmentJsonRoundTripTest {
                         .financialRisk(RiskAssessmentResponseDTO.RiskCategoryDTO.builder()
                                 .score(42.5).reason("historical ML").source("ML_MODEL").build())
                         .marketRisk(RiskAssessmentResponseDTO.RiskCategoryDTO.builder()
-                                .score(55.0).reason("competitive segment").source("GEMINI").build())
+                                .score(55.0).reason("competitive segment").source("LLM").build())
                         .mlOnlyFinancialRisk(87.3)
                         .budgetAdequacy(RiskAssessmentResponseDTO.BudgetAdequacyDTO.builder()
                                 .score(80).reasoning("₹18,00,000 comfortably covers a focused SaaS MVP").build())
@@ -34,7 +34,7 @@ class RiskAssessmentJsonRoundTripTest {
         String json = objectMapper.writeValueAsString(breakdown);
 
         assertTrue(json.contains("\"financial_risk\":{\"score\":42.5,\"reason\":\"historical ML\",\"source\":\"ML_MODEL\"}"));
-        assertTrue(json.contains("\"market_risk\":{\"score\":55.0,\"reason\":\"competitive segment\",\"source\":\"GEMINI\"}"));
+        assertTrue(json.contains("\"market_risk\":{\"score\":55.0,\"reason\":\"competitive segment\",\"source\":\"LLM\"}"));
         assertTrue(json.contains("\"ml_only_financial_risk\":87.3"));
         assertTrue(json.contains("\"budget_adequacy\":{\"score\":80,\"reasoning\":\"₹18,00,000 comfortably covers a focused SaaS MVP\"}"));
         // Null categories must not be written
@@ -64,10 +64,10 @@ class RiskAssessmentJsonRoundTripTest {
         String json = """
                 {
                   "financial_risk": {"score": 30.0, "reason": "ML", "source": "ML_MODEL"},
-                  "market_risk": {"score": 60.0, "reason": "crowded", "source": "GEMINI"},
-                  "technical_risk": {"score": 70.0, "reason": "complex stack", "source": "GEMINI"},
-                  "operational_risk": {"score": 20.0, "reason": "lean team", "source": "GEMINI"},
-                  "execution_risk": {"score": 45.0, "reason": "clear roadmap", "source": "GEMINI"}
+                  "market_risk": {"score": 60.0, "reason": "crowded", "source": "LLM"},
+                  "technical_risk": {"score": 70.0, "reason": "complex stack", "source": "LLM"},
+                  "operational_risk": {"score": 20.0, "reason": "lean team", "source": "LLM"},
+                  "execution_risk": {"score": 45.0, "reason": "clear roadmap", "source": "LLM"}
                 }
                 """;
 
@@ -82,7 +82,7 @@ class RiskAssessmentJsonRoundTripTest {
     }
 
     @Test
-    void geminiRiskResponseParsesTheNewNestedRiskShape() throws Exception {
+    void llmRiskResponseParsesTheNewNestedRiskShape() throws Exception {
         String json = """
                 {
                   "budget_adequacy": {"score": 80, "reasoning": "₹18,00,000 covers a focused single-feature SaaS MVP"},
@@ -97,7 +97,7 @@ class RiskAssessmentJsonRoundTripTest {
                 }
                 """;
 
-        GeminiRiskResponseDTO dto = objectMapper.readValue(json, GeminiRiskResponseDTO.class);
+        LlmRiskResponseDTO dto = objectMapper.readValue(json, LlmRiskResponseDTO.class);
 
         assertNotNull(dto.getBudgetAdequacy());
         assertEquals(Integer.valueOf(80), dto.getBudgetAdequacy().getScore());

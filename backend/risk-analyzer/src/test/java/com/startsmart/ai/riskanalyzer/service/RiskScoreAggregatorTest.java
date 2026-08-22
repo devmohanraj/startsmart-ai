@@ -106,7 +106,7 @@ class RiskScoreAggregatorTest {
     @Test
     void blendFinancialRisk_movesTowardBudgetAdequacySignalNotJustMl1() {
         // Raw ML baseline says 87.3/100 financial risk (budget vs funded companies).
-        // Gemini judges the budget ADEQUATE for this specific focused scope (85/100).
+        // The LLM judges the budget ADEQUATE for this specific focused scope (85/100).
         // budgetAdequacyRisk = 100 - 85 = 15 -> blended = 15*0.6 + 87.3*0.4 = 9 + 34.92 = 43.92 -> 43.9
         double blended = RiskScoreAggregator.blendFinancialRisk(85, 87.3);
         assertEquals(43.9, blended, 0.0001);
@@ -146,14 +146,14 @@ class RiskScoreAggregatorTest {
 
     // ------------------------------------------------------------------
     // Calibration scenarios (TEST A-D). These mirror how the service
-    // combines Gemini's budget-adequacy judgment with the ML historical
+    // combines the LLM's budget-adequacy judgment with the ML historical
     // baseline, then derives overall risk and success probability.
     // ------------------------------------------------------------------
 
     @Test
     void testA_focusedSaaS_smallBudget_isNotAutomaticallyHighRisk() {
         // ₹18L focused single-feature SaaS. ML flags the small budget as high
-        // historical risk (87.3), but Gemini judges it ADEQUATE for this narrow
+        // historical risk (87.3), but the LLM judges it ADEQUATE for this narrow
         // scope (75). The blend must pull financial risk well below the ML value.
         double mlOnly = 87.3;
         double budgetAdequacy = 75;

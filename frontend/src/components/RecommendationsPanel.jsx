@@ -132,7 +132,7 @@ function RecommendationsPanel({ projectId, riskData, cachedData, onCache }) {
               if (cancelled) return;
               setError(postErr.message);
               if (/Request failed with status (500|502|503)/.test(postErr.message)) {
-                // Server is retrying the Gemini generation — poll until it lands
+                // Server is retrying the Groq generation — poll until it lands
                 pollInterval = setInterval(() => {
                   fetchRecommendations(projectId, "GET")
                     .then((json) => {

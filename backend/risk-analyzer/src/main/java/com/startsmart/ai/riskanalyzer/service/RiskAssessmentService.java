@@ -3,7 +3,7 @@ package com.startsmart.ai.riskanalyzer.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.startsmart.ai.riskanalyzer.dto.GeminiRiskResponseDTO;
+import com.startsmart.ai.riskanalyzer.dto.LlmRiskResponseDTO;
 import com.startsmart.ai.riskanalyzer.dto.MlPredictionResponseDTO;
 import com.startsmart.ai.riskanalyzer.dto.RiskAssessmentResponseDTO;
 import com.startsmart.ai.riskanalyzer.entity.Prediction;
@@ -31,14 +31,14 @@ public class RiskAssessmentService {
     private final ProjectRepository projectRepository;
     private final PredictionRepository predictionRepository;
     private final SwotAnalysisRepository swotAnalysisRepository;
-    private final GeminiService geminiService;
+    private final LlmService llmService;
     private final ObjectMapper objectMapper;
     private final WebClient.Builder webClientBuilder;
 
     @Value("${ml.service.url:http://localhost:8000}")
     private String mlServiceUrl;
 
-    // Deterministic weights for feasibility score (NOT from Gemini)
+    // Deterministic weights for feasibility score (NOT from llmData)
     private static final double WEIGHT_FINANCIAL = 0.18;
     private static final double WEIGHT_TEAM = 0.15;
     private static final double WEIGHT_COMPETITIVE = 0.15;
@@ -49,7 +49,7 @@ public class RiskAssessmentService {
 
     // Data source labels used in the risk breakdown (which engine produced each score)
     private static final String SOURCE_ML_MODEL = "ML_MODEL";
-    private static final String SOURCE_GEMINI = "GEMINI";
+    private static final String SOURCE_LLM = "LLM";
     private static final String SOURCE_BLENDED = "BLENDED";
 
     @Transactional
@@ -61,17 +61,17 @@ public class RiskAssessmentService {
 
         // Step 2: Call Groq to reason over Market / Technical / Operational / Execution risk,
         // anchored on the ML financial baseline so the five scores stay internally consistent
-        GeminiRiskResponseDTO geminiData = callGroqRiskAnalysis(project, mlPrediction);
+        LlmRiskResponseDTO llmData = callGroqRiskAnalysis(project, mlPrediction);
 
         // Step 3: Assemble the five-category breakdown and combine into the weighted Overall Risk Score
-        RiskAssessmentResponseDTO.RiskBreakdownDTO riskBreakdown = buildRiskBreakdown(project, mlPrediction, geminiData);
+        RiskAssessmentResponseDTO.RiskBreakdownDTO riskBreakdown = buildRiskBreakdown(project, mlPrediction, llmData);
         double overallRiskScore = computeOverallRiskScore(riskBreakdown);
         String riskLevel = RiskScoreAggregator.deriveRiskLevel(overallRiskScore);
         // Combined success probability now reflects ALL FIVE risk categories, not just the ML financial baseline
         double combinedSuccessProbability = RiskScoreAggregator.combinedSuccessProbability(overallRiskScore);
 
         // Step 4: Compute deterministic feasibility score from the 7 assessment metrics
-        Double feasibilityScore = computeFeasibilityScore(geminiData.getAssessmentMetrics());
+        Double feasibilityScore = computeFeasibilityScore(llmData.getAssessmentMetrics());
 
         // Step 5: Persist combined result (replace any previous assessment for this project)
         predictionRepository.deleteByProjectProjectId(projectId);
@@ -79,9 +79,9 @@ public class RiskAssessmentService {
 
         Prediction savedPrediction = predictionRepository.save(
                 buildPrediction(project, mlPrediction, riskBreakdown, overallRiskScore, combinedSuccessProbability, riskLevel));
-        SwotAnalysis savedSwot = swotAnalysisRepository.save(buildSwotAnalysis(project, geminiData, feasibilityScore));
+        SwotAnalysis savedSwot = swotAnalysisRepository.save(buildSwotAnalysis(project, llmData, feasibilityScore));
 
-        return toResponseDTO(savedPrediction, savedSwot, mlPrediction, geminiData, feasibilityScore,
+        return toResponseDTO(savedPrediction, savedSwot, mlPrediction, llmData, feasibilityScore,
                 riskBreakdown, overallRiskScore, riskLevel, combinedSuccessProbability, mlPrediction.getSuccessProbability());
     }
 
@@ -115,7 +115,7 @@ public class RiskAssessmentService {
                 .block();
 
         if (response == null) {
-            throw new GeminiService.GeminiException("ML service returned null response");
+            throw new LlmService.LlmException("ML service returned null response");
         }
         return response;
     }
@@ -124,15 +124,15 @@ public class RiskAssessmentService {
     // Groq call - four AI-reasoned risk categories anchored on the
     // ML financial baseline
     // ---------------------------------------------------------------
-    private GeminiRiskResponseDTO callGroqRiskAnalysis(Project project, MlPredictionResponseDTO mlPrediction) {
+    private LlmRiskResponseDTO callGroqRiskAnalysis(Project project, MlPredictionResponseDTO mlPrediction) {
         String prompt = buildRiskPrompt(project, mlPrediction);
-        String rawJson = geminiService.callGroq(prompt);
+        String rawJson = llmService.callGroq(prompt);
         String cleaned = stripMarkdown(rawJson);
 
         try {
-            return objectMapper.readValue(cleaned, GeminiRiskResponseDTO.class);
+            return objectMapper.readValue(cleaned, LlmRiskResponseDTO.class);
         } catch (Exception e) {
-            throw new GeminiService.GeminiException("Failed to parse Groq risk response: " + e.getMessage(), e);
+            throw new LlmService.LlmException("Failed to parse Groq risk response: " + e.getMessage(), e);
         }
     }
 
@@ -302,14 +302,14 @@ public class RiskAssessmentService {
                 .build();
     }
 
-    private SwotAnalysis buildSwotAnalysis(Project project, GeminiRiskResponseDTO gemini, Double feasibilityScore) {
+    private SwotAnalysis buildSwotAnalysis(Project project, LlmRiskResponseDTO llmData, Double feasibilityScore) {
         return SwotAnalysis.builder()
                 .project(project)
-                .swotJson(toJson(gemini.getSwot()))
-                .riskNarrative(gemini.getRiskNarrative())
+                .swotJson(toJson(llmData.getSwot()))
+                .riskNarrative(llmData.getRiskNarrative())
                 .feasibilityScore(feasibilityScore)
-                .feasibilityVerdict(gemini.getFeasibilityVerdict())
-                .assessmentMetricsJson(toJson(gemini.getAssessmentMetrics()))
+                .feasibilityVerdict(llmData.getFeasibilityVerdict())
+                .assessmentMetricsJson(toJson(llmData.getAssessmentMetrics()))
                 .build();
     }
 
@@ -325,7 +325,7 @@ public class RiskAssessmentService {
             Prediction prediction,
             SwotAnalysis swot,
             MlPredictionResponseDTO ml,
-            GeminiRiskResponseDTO gemini,
+            LlmRiskResponseDTO llmData,
             Double feasibilityScore,
             RiskAssessmentResponseDTO.RiskBreakdownDTO freshBreakdown,
             Double freshOverallRiskScore,
@@ -333,7 +333,7 @@ public class RiskAssessmentService {
             Double freshCombinedSuccessProbability,
             Double freshFinancialSuccessProbability) {
 
-        // When reading from cache (ml/gemini null), deserialize from the JSONB columns
+        // When reading from cache (ml/llmData null), deserialize from the JSONB columns
         List<MlPredictionResponseDTO.RiskFactor> topRiskFactors = ml != null
                 ? ml.getTopRiskFactors()
                 : fromJson(prediction.getTopRiskFactorsJson(), new TypeReference<>() {});
@@ -416,16 +416,16 @@ public class RiskAssessmentService {
     // Five-category risk breakdown helpers
     // ---------------------------------------------------------------
     private RiskAssessmentResponseDTO.RiskBreakdownDTO buildRiskBreakdown(
-            Project project, MlPredictionResponseDTO ml, GeminiRiskResponseDTO gemini) {
-        double blendedFinancialRisk = computeBlendedFinancialRisk(ml, gemini);
+            Project project, MlPredictionResponseDTO ml, LlmRiskResponseDTO llmData) {
+        double blendedFinancialRisk = computeBlendedFinancialRisk(ml, llmData);
         return RiskAssessmentResponseDTO.RiskBreakdownDTO.builder()
-                .financialRisk(buildFinancialRiskCategory(project, ml, gemini, blendedFinancialRisk))
-                .marketRisk(toCategory(gemini.getMarketRisk()))
-                .technicalRisk(toCategory(gemini.getTechnicalRisk()))
-                .operationalRisk(toCategory(gemini.getOperationalRisk()))
-                .executionRisk(toCategory(gemini.getExecutionRisk()))
+                .financialRisk(buildFinancialRiskCategory(project, ml, llmData, blendedFinancialRisk))
+                .marketRisk(toCategory(llmData.getMarketRisk()))
+                .technicalRisk(toCategory(llmData.getTechnicalRisk()))
+                .operationalRisk(toCategory(llmData.getOperationalRisk()))
+                .executionRisk(toCategory(llmData.getExecutionRisk()))
                 .mlOnlyFinancialRisk(ml.getOverallRiskScore())
-                .budgetAdequacy(toBudgetAdequacyDto(gemini.getBudgetAdequacy()))
+                .budgetAdequacy(toBudgetAdequacyDto(llmData.getBudgetAdequacy()))
                 .build();
     }
 
@@ -435,16 +435,16 @@ public class RiskAssessmentService {
      * If the LLM did not return a budget-adequacy score, the ML baseline is used
      * unchanged.
      */
-    private double computeBlendedFinancialRisk(MlPredictionResponseDTO ml, GeminiRiskResponseDTO gemini) {
+    private double computeBlendedFinancialRisk(MlPredictionResponseDTO ml, LlmRiskResponseDTO llmData) {
         double mlScore = safeDouble(ml.getOverallRiskScore());
-        Integer adequacyScore = gemini.getBudgetAdequacy() != null ? gemini.getBudgetAdequacy().getScore() : null;
+        Integer adequacyScore = llmData.getBudgetAdequacy() != null ? llmData.getBudgetAdequacy().getScore() : null;
         if (adequacyScore == null) {
             return Math.round(mlScore * 10.0) / 10.0;
         }
         return RiskScoreAggregator.blendFinancialRisk(adequacyScore.doubleValue(), mlScore);
     }
 
-    private RiskAssessmentResponseDTO.BudgetAdequacyDTO toBudgetAdequacyDto(GeminiRiskResponseDTO.BudgetAdequacy adequacy) {
+    private RiskAssessmentResponseDTO.BudgetAdequacyDTO toBudgetAdequacyDto(LlmRiskResponseDTO.BudgetAdequacy adequacy) {
         if (adequacy == null) {
             return null;
         }
@@ -462,8 +462,8 @@ public class RiskAssessmentService {
      * {@code mlOnlyFinancialRisk}.
      */
     private RiskAssessmentResponseDTO.RiskCategoryDTO buildFinancialRiskCategory(
-            Project project, MlPredictionResponseDTO ml, GeminiRiskResponseDTO gemini, double blendedFinancialRisk) {
-        GeminiRiskResponseDTO.BudgetAdequacy adequacy = gemini.getBudgetAdequacy();
+            Project project, MlPredictionResponseDTO ml, LlmRiskResponseDTO llmData, double blendedFinancialRisk) {
+        LlmRiskResponseDTO.BudgetAdequacy adequacy = llmData.getBudgetAdequacy();
         Double mlScore = ml.getOverallRiskScore();
 
         String reason;
@@ -494,17 +494,17 @@ public class RiskAssessmentService {
         return "in the lower-risk band relative to previously funded companies in this dataset";
     }
 
-    private RiskAssessmentResponseDTO.RiskCategoryDTO toCategory(GeminiRiskResponseDTO.RiskScore riskScore) {
+    private RiskAssessmentResponseDTO.RiskCategoryDTO toCategory(LlmRiskResponseDTO.RiskScore riskScore) {
         if (riskScore == null || riskScore.getScore() == null) {
             return RiskAssessmentResponseDTO.RiskCategoryDTO.builder()
-                    .source(SOURCE_GEMINI)
+                    .source(SOURCE_LLM)
                     .reason("The reasoning model did not return data for this category; regenerate to refresh.")
                     .build();
         }
         return RiskAssessmentResponseDTO.RiskCategoryDTO.builder()
                 .score(riskScore.getScore())
                 .reason(riskScore.getReason())
-                .source(SOURCE_GEMINI)
+                .source(SOURCE_LLM)
                 .build();
     }
 
@@ -576,28 +576,28 @@ public class RiskAssessmentService {
         if (breakdown.getMarketRisk() == null) {
             breakdown.setMarketRisk(RiskAssessmentResponseDTO.RiskCategoryDTO.builder()
                     .reason("Market risk was not computed in previous-generation assessments. Regenerate to compute it.")
-                    .source(SOURCE_GEMINI)
+                    .source(SOURCE_LLM)
                     .build());
         }
         if (breakdown.getTechnicalRisk() == null && breakdown.getTechnicalRiskScore() != null) {
             breakdown.setTechnicalRisk(RiskAssessmentResponseDTO.RiskCategoryDTO.builder()
                     .score(breakdown.getTechnicalRiskScore())
                     .reason("Technical sub-score carried over from a previous-generation assessment. Regenerate for an LLM-grounded reason.")
-                    .source(SOURCE_GEMINI)
+                    .source(SOURCE_LLM)
                     .build());
         }
         if (breakdown.getOperationalRisk() == null && breakdown.getOperationalRiskScore() != null) {
             breakdown.setOperationalRisk(RiskAssessmentResponseDTO.RiskCategoryDTO.builder()
                     .score(breakdown.getOperationalRiskScore())
                     .reason("Operational sub-score carried over from a previous-generation assessment. Regenerate for an LLM-grounded reason.")
-                    .source(SOURCE_GEMINI)
+                    .source(SOURCE_LLM)
                     .build());
         }
         if (breakdown.getExecutionRisk() == null && breakdown.getExecutionRiskScore() != null) {
             breakdown.setExecutionRisk(RiskAssessmentResponseDTO.RiskCategoryDTO.builder()
                     .score(breakdown.getExecutionRiskScore())
                     .reason("Execution sub-score carried over from a previous-generation assessment. Regenerate for an LLM-grounded reason.")
-                    .source(SOURCE_GEMINI)
+                    .source(SOURCE_LLM)
                     .build());
         }
     }

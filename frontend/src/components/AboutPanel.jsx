@@ -22,7 +22,7 @@ const STEPS = [
 ];
 
 const HIGHLIGHTS = [
-  { label: "AI-Powered Analysis", desc: "Gemini-driven market & risk evaluation" },
+  { label: "AI-Powered Analysis", desc: "AI-driven market & risk evaluation" },
   { label: "Real-time Market Data", desc: "Current TAM/SAM/SOM estimates" },
   { label: "Actionable Insights", desc: "Tailored recommendations to reduce risk" },
 ];

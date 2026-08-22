@@ -9,7 +9,7 @@ import java.util.List;
 
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class GeminiResponseDTO {
+public class LlmMarketResponseDTO {
 
     private MarketData marketData;
 

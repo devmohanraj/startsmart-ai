@@ -181,7 +181,8 @@ POST /api/projects/{projectId}/market-analysis
 | `spring.datasource.url` | PostgreSQL database URL | Yes |
 | `spring.datasource.username` | Database username | Yes |
 | `spring.datasource.password` | Database password | Yes |
-| `gemini.api.key` | Google Gemini AI API key | No |
+| `groq.api.key` | Groq AI API key (risk assessment) | Yes |
+| `groq.api.key.analysis` | Groq AI API key (market analysis) | Yes |
 | `server.port` | Server port (default: 8080) | No |
 
 ### Frontend Environment Variables

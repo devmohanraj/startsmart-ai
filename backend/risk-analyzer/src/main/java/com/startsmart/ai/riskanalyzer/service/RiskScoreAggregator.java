@@ -7,7 +7,7 @@ package com.startsmart.ai.riskanalyzer.service;
  *
  * Financial Risk comes from the ML microservice and carries the largest
  * weight because it is grounded in real historical data; the other four
- * categories are reasoned over by Gemini using the exact same 0-100 scale
+     * categories are reasoned over by the LLM (Groq) using the exact same 0-100 scale
  * (higher = riskier), so the weighted average stays internally consistent.
  *
  * Kept as a standalone utility (no Spring dependencies) so the weighting
@@ -29,10 +29,10 @@ public final class RiskScoreAggregator {
      * Weighted average of the five risk category scores.
      *
      * @param financial   Financial risk 0-100 (from the ML model)
-     * @param market      Market risk 0-100 (Gemini reasoning)
-     * @param technical   Technical risk 0-100 (Gemini reasoning)
-     * @param operational Operational risk 0-100 (Gemini reasoning)
-     * @param execution   Execution risk 0-100 (Gemini reasoning)
+     * @param market      Market risk 0-100 (LLM reasoning)
+     * @param technical   Technical risk 0-100 (LLM reasoning)
+     * @param operational Operational risk 0-100 (LLM reasoning)
+     * @param execution   Execution risk 0-100 (LLM reasoning)
      * @return the combined Overall Risk Score, rounded to 1 decimal
      */
     public static double computeOverallRiskScore(
@@ -54,14 +54,14 @@ public final class RiskScoreAggregator {
     }
 
     /**
-     * Blends Gemini's budget-adequacy judgment with the ML historical baseline
+     * Blends the LLM's budget-adequacy judgment with the ML historical baseline
      * into the Financial Risk score used for this project:
      * <pre>
      *   budgetAdequacyRisk = 100 - budgetAdequacyScore  (high adequacy = low risk)
      *   blended = (budgetAdequacyRisk * 0.60) + (mlFinancialRisk * 0.40)
      * </pre>
      *
-     * @param budgetAdequacyScore 0-100 from Gemini (0 = totally inadequate budget
+     * @param budgetAdequacyScore 0-100 from the LLM (0 = totally inadequate budget
      *                            for the specific scope, 100 = comfortably covers it)
      * @param mlFinancialRisk     raw ML-only financial risk 0-100 (budget + industry
      *                            against historical funded companies)

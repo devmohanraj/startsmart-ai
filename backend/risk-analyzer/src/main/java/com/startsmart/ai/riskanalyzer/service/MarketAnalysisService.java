@@ -2,7 +2,7 @@ package com.startsmart.ai.riskanalyzer.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.startsmart.ai.riskanalyzer.dto.GeminiResponseDTO;
+import com.startsmart.ai.riskanalyzer.dto.LlmMarketResponseDTO;
 import com.startsmart.ai.riskanalyzer.dto.MarketAnalysisResponseDTO;
 import com.startsmart.ai.riskanalyzer.entity.CompetitorAnalysis;
 import com.startsmart.ai.riskanalyzer.entity.MarketAnalysis;
@@ -25,7 +25,7 @@ public class MarketAnalysisService {
     private final ProjectRepository projectRepository;
     private final MarketAnalysisRepository marketAnalysisRepository;
     private final CompetitorAnalysisRepository competitorAnalysisRepository;
-    private final GeminiService geminiService;
+    private final LlmService llmService;
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -40,8 +40,8 @@ public class MarketAnalysisService {
         }
         marketAnalysisRepository.findByProjectProjectId(projectId).ifPresent(marketAnalysisRepository::delete);
 
-        GeminiResponseDTO geminiData = geminiService.analyzeMarket(project);
-        GeminiResponseDTO.MarketData marketData = geminiData.getMarketData();
+        LlmMarketResponseDTO llmResponse = llmService.analyzeMarket(project);
+        LlmMarketResponseDTO.MarketData marketData = llmResponse.getMarketData();
 
         String trendsJson;
         try {

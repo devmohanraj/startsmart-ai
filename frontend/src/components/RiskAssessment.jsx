@@ -385,7 +385,7 @@ function RiskAssessment({
   const hasFetchedRef = useRef(false);
   const lastFetchKeyRef = useRef(null);
 
-  // Popup only shows while the ML + Gemini generation (POST) is running —
+  // Popup only shows while the ML + Groq generation (POST) is running —
   // never while merely fetching an already-generated assessment from the DB (GET).
   const showPopup = isGenerating;
 
@@ -458,7 +458,7 @@ function RiskAssessment({
             setIsGenerating(false);
             return;
           }
-          // No cached assessment — fresh ML + Gemini generation (POST) is part
+          // No cached assessment — fresh ML + Groq generation (POST) is part
           // of this SAME logical fetch cycle, so the popup stays visible while
           // it runs. It is NOT gated by the once-guard refs here.
           if (isCurrentCycle()) setIsGenerating(true);
@@ -630,7 +630,7 @@ function RiskAssessment({
           </div>
         </div>
 
-        {/* Fresh ML + Gemini generation popup — same as Project Analysis */}
+        {/* Fresh ML + Groq generation popup — same as Project Analysis */}
         {showPopup && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 flex flex-col items-center gap-4">
@@ -780,16 +780,16 @@ function RiskAssessment({
 
             {/* Assessment Metrics */}
             <Card className="overflow-hidden">
-              <CardHeader title="Assessment Metrics" subtitle="Gemini's 0-100 health metrics" icon={<GaugeIcon />} />
-              <div className="px-5 py-4">
-                <div className="rounded-xl bg-gray-900/40 border border-gray-700/30 px-4 py-3.5 space-y-3.5">
+              <CardHeader title="Assessment Metrics" subtitle="AI-generated 0-100 health metrics" icon={<GaugeIcon />} />
+              <div className="px-5 py-3">
+                <div className="rounded-xl bg-gray-900/40 border border-gray-700/30 px-4 py-3 space-y-2.5">
                   {metricsEntries.length > 0 ? (
                     metricsEntries.map(([key, value]) => {
                       const v = value != null ? Number(value) : null;
                       const msev = v != null ? severityOf(100 - v) : "none";
                       return (
                         <div key={key}>
-                          <div className="flex items-center justify-between text-[13px] mb-1.5">
+                          <div className="flex items-center justify-between text-[13px] mb-1">
                             <span className="text-gray-300 font-medium">{METRIC_LABELS[key] || key}</span>
                             <span className="font-bold text-gray-100">{v != null ? v : "\u2014"}</span>
                           </div>
@@ -913,7 +913,7 @@ function RiskAssessment({
 
             {/* SWOT Analysis */}
             <Card className="lg:col-span-6">
-              <CardHeader title="SWOT Analysis" subtitle="Gemini's structured assessment" icon={<SwotIcon />} />
+              <CardHeader title="SWOT Analysis" subtitle="AI-generated structured assessment" icon={<SwotIcon />} />
               <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <SwotBlock title="Strengths" icon={<StrengthIcon />} items={swot.strengths} tone="green" />
                 <SwotBlock title="Weaknesses" icon={<WeaknessIcon />} items={swot.weaknesses} tone="red" />

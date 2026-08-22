@@ -92,7 +92,7 @@ def _call_groq(prompt: str) -> str:
 
 
 # ---------------------------------------------------------------
-# JSON parsing helpers (mirror of GeminiService.stripMarkdown on the Java side)
+# JSON parsing helpers (mirror of LlmService.stripMarkdown on the Java side)
 # ---------------------------------------------------------------
 def _strip_markdown(text: str) -> str:
     text = (text or "").strip()
@@ -129,7 +129,7 @@ def _parse_json_array(text: str) -> list:
 
 
 # ---------------------------------------------------------------
-# Prompt text helpers (mirror RecommendationService/GeminiService conventions)
+# Prompt text helpers (mirror RecommendationService/LlmService conventions)
 # ---------------------------------------------------------------
 def _capitalize(value: str) -> str:
     value = (value or "").strip()

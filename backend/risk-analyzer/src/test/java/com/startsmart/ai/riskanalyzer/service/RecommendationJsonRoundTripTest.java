@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.startsmart.ai.riskanalyzer.dto.GeminiRecommendationDTO;
+import com.startsmart.ai.riskanalyzer.dto.LlmRecommendationDTO;
 import com.startsmart.ai.riskanalyzer.dto.RecommendationResponseDTO;
 import org.junit.jupiter.api.Test;
 
@@ -48,7 +48,7 @@ class RecommendationJsonRoundTripTest {
     }
 
     @Test
-    void parsesGeminiRecommendationArrayForACategory() throws Exception {
+    void parsesLlmRecommendationArrayForACategory() throws Exception {
         String json = """
                 [
                   {"recommendation": "R1", "mitigation": "M1", "phase": "Immediate"},
@@ -56,8 +56,8 @@ class RecommendationJsonRoundTripTest {
                 ]
                 """;
 
-        List<GeminiRecommendationDTO> list = objectMapper.readValue(
-                json, new TypeReference<List<GeminiRecommendationDTO>>() {});
+        List<LlmRecommendationDTO> list = objectMapper.readValue(
+                json, new TypeReference<List<LlmRecommendationDTO>>() {});
 
         assertEquals(2, list.size());
         assertEquals("R1", list.get(0).getRecommendation());
@@ -68,7 +68,7 @@ class RecommendationJsonRoundTripTest {
     }
 
     @Test
-    void parsesGeminiRecommendationArrayWithMarkdownFence() throws Exception {
+    void parsesLlmRecommendationArrayWithMarkdownFence() throws Exception {
         String json = """
                 ```json
                 [{"recommendation": "R1", "mitigation": "M1", "phase": "Immediate"}]
@@ -86,8 +86,8 @@ class RecommendationJsonRoundTripTest {
         }
         cleaned = cleaned.trim();
 
-        List<GeminiRecommendationDTO> list = objectMapper.readValue(
-                cleaned, new TypeReference<List<GeminiRecommendationDTO>>() {});
+        List<LlmRecommendationDTO> list = objectMapper.readValue(
+                cleaned, new TypeReference<List<LlmRecommendationDTO>>() {});
 
         assertEquals(1, list.size());
         assertEquals("R1", list.get(0).getRecommendation());

@@ -1,10 +1,9 @@
 package com.startsmart.ai.riskanalyzer.service;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.startsmart.ai.riskanalyzer.dto.GeminiRecommendationDTO;
+import com.startsmart.ai.riskanalyzer.dto.LlmRecommendationDTO;
 import com.startsmart.ai.riskanalyzer.dto.RecommendationResponseDTO;
 import com.startsmart.ai.riskanalyzer.dto.RiskAssessmentResponseDTO;
 import com.startsmart.ai.riskanalyzer.entity.Prediction;
@@ -69,7 +68,7 @@ public class RecommendationService {
 
         // The 2-node LangGraph agent (analyze -> sequence, inside the Python
         // ml-service) covers all top categories and phases them in one flow.
-        List<GeminiRecommendationDTO> results = langGraphClient.generateRecommendations(top, project, swotData);
+        List<LlmRecommendationDTO> results = langGraphClient.generateRecommendations(top, project, swotData);
 
         Map<String, String> priorityByCategory = new HashMap<>();
         for (int i = 0; i < top.size(); i++) {
@@ -77,7 +76,7 @@ public class RecommendationService {
         }
 
         List<Recommendation> recommendations = new ArrayList<>();
-        for (GeminiRecommendationDTO g : results) {
+        for (LlmRecommendationDTO g : results) {
             if (g.getRecommendation() == null || g.getRecommendation().isBlank()) {
                 continue;
             }
@@ -137,20 +136,6 @@ public class RecommendationService {
         return fromJson(swot.getSwotJson(), new TypeReference<>() {});
     }
 
-    private List<GeminiRecommendationDTO> parseRecommendationsResponse(String json) {
-        if (json == null || json.isBlank()) {
-            return List.of();
-        }
-        try {
-            CombinedRecommendationsResponse response =
-                    objectMapper.readValue(json, CombinedRecommendationsResponse.class);
-            return response.recommendations() != null ? response.recommendations() : List.of();
-        } catch (JsonProcessingException e) {
-            throw new GeminiService.GeminiException(
-                    "Failed to parse Gemini recommendation response: " + e.getMessage(), e);
-        }
-    }
-
     private String normalizeCategory(String category) {
         if (category == null) {
             return null;
@@ -184,10 +169,5 @@ public class RecommendationService {
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to deserialize recommendation source data", e);
         }
-    }
-
-    /** Shape of the single Gemini response for all top categories. */
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private record CombinedRecommendationsResponse(List<GeminiRecommendationDTO> recommendations) {
     }
 }

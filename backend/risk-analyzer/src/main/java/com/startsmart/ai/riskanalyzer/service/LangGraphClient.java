@@ -1,7 +1,7 @@
 package com.startsmart.ai.riskanalyzer.service;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.startsmart.ai.riskanalyzer.dto.GeminiRecommendationDTO;
+import com.startsmart.ai.riskanalyzer.dto.LlmRecommendationDTO;
 import com.startsmart.ai.riskanalyzer.dto.RiskAssessmentResponseDTO;
 import com.startsmart.ai.riskanalyzer.entity.Project;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,7 +24,7 @@ public class LangGraphClient {
         this.mlServiceUrl = mlServiceUrl;
     }
 
-    public List<GeminiRecommendationDTO> generateRecommendations(
+    public List<LlmRecommendationDTO> generateRecommendations(
             List<RecommendationRanker.RankedCategory> topCategories,
             Project project,
             RiskAssessmentResponseDTO.SwotDTO swot) {
@@ -43,13 +43,13 @@ public class LangGraphClient {
                     .block();
 
             if (response == null || response.recommendations() == null) {
-                throw new GeminiService.GeminiException("LangGraph service returned null response");
+                throw new LlmService.LlmException("LangGraph service returned null response");
             }
             return response.recommendations();
-        } catch (GeminiService.GeminiException e) {
+        } catch (LlmService.LlmException e) {
             throw e;
         } catch (Exception e) {
-            throw new GeminiService.GeminiException(
+            throw new LlmService.LlmException(
                     "Failed to call LangGraph recommendation service: " + e.getMessage(), e);
         }
     }
@@ -87,6 +87,6 @@ public class LangGraphClient {
 
     /** Shape of the LangGraph service response: { "recommendations": [...] }. */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record LangGraphRecommendationsResponse(List<GeminiRecommendationDTO> recommendations) {
+    private record LangGraphRecommendationsResponse(List<LlmRecommendationDTO> recommendations) {
     }
 }
