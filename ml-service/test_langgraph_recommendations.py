@@ -1,6 +1,6 @@
 """Basic tests for the LangGraph recommendation agent.
 
-The Gemini calls are mocked so the tests verify the graph wiring and state flow
+The Groq calls are mocked so the tests verify the graph wiring and state flow
 (Node 1 -> Node 2) without hitting the real API.
 """
 
@@ -44,14 +44,14 @@ def test_graph_flows_node1_to_node2_and_produces_final_roadmap(monkeypatch):
 
     calls = []
 
-    def fake_call_gemini(prompt):
+    def fake_call_groq(prompt):
         if "STRICT REQUIREMENTS" in prompt and '"phase"' not in prompt:
             calls.append("Node 1 (analyze)")
             return json.dumps(node1_payload)
         calls.append("Node 2 (sequence)")
         return json.dumps(node2_payload)
 
-    monkeypatch.setattr(lg, "_call_gemini", fake_call_gemini)
+    monkeypatch.setattr(lg, "_call_groq", fake_call_groq)
 
     top_categories, project_context, swot = _sample_inputs()
     result = lg.run_recommendation_graph(top_categories, project_context, swot)
@@ -74,10 +74,10 @@ def test_strip_markdown_removes_code_fences():
 def test_node1_failure_is_debuggable(monkeypatch):
     """A failed Node 1 raises an error that names the failing node."""
 
-    def fake_call_gemini(prompt):
+    def fake_call_groq(prompt):
         raise RuntimeError("network down")
 
-    monkeypatch.setattr(lg, "_call_gemini", fake_call_gemini)
+    monkeypatch.setattr(lg, "_call_groq", fake_call_groq)
 
     top_categories, project_context, swot = _sample_inputs()
     with pytest.raises(RuntimeError, match="Node 1 \\(analyze\\)"):
@@ -87,12 +87,12 @@ def test_node1_failure_is_debuggable(monkeypatch):
 def test_node2_failure_is_debuggable(monkeypatch):
     """A failed Node 2 raises an error that names the failing node."""
 
-    def fake_call_gemini(prompt):
+    def fake_call_groq(prompt):
         if '"phase"' not in prompt:
             return json.dumps([{"riskCategory": "financial", "recommendation": "r", "mitigation": "m"}])
         raise RuntimeError("network down")
 
-    monkeypatch.setattr(lg, "_call_gemini", fake_call_gemini)
+    monkeypatch.setattr(lg, "_call_groq", fake_call_groq)
 
     top_categories, project_context, swot = _sample_inputs()
     with pytest.raises(RuntimeError, match="Node 2 \\(sequence\\)"):

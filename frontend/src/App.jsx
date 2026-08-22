@@ -9,6 +9,7 @@ import AuthModal from './components/AuthModal';
 import MyProjects from './components/MyProjects';
 import RiskAssessment from './components/RiskAssessment';
 import Dashboard from './components/Dashboard';
+import { invalidateDashboardCache } from './utils/dashboardCache';
 import './index.css';
 
 if ('scrollRestoration' in window.history) {
@@ -20,7 +21,14 @@ function App() {
   const [submittedProject, setSubmittedProject] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("startsmart_user"));
+      return stored && stored.userId ? stored : null;
+    } catch {
+      return null;
+    }
+  });
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('login');
 
@@ -84,6 +92,10 @@ function App() {
       if (prev.some((p) => p.projectId === project.projectId)) return prev;
       return [project, ...prev];
     });
+    // The dashboard summary is stale the moment a project is created —
+    // drop the cached snapshot so the next visit refetches.
+    invalidateDashboardCache(user?.userId);
+    fetchUserProjects(user?.userId);
   };
 
   const handleReset = () => {
@@ -132,12 +144,22 @@ function App() {
 
   const handleAuthSuccess = async (userData) => {
     setUser(userData);
+    try {
+      localStorage.setItem("startsmart_user", JSON.stringify(userData));
+    } catch {
+      // ignore quota / serialization errors
+    }
     setAuthModalOpen(false);
     await fetchUserProjects(userData.userId);
   };
 
   const handleLogout = () => {
     setUser(null);
+    try {
+      localStorage.removeItem("startsmart_user");
+    } catch {
+      // ignore storage errors
+    }
     setUserProjects([]);
     setSubmittedProject(null);
     setActiveTab('Project Input');
@@ -170,9 +192,28 @@ function App() {
     }
   };
 
+  // Restore the persisted session once on mount: if a user was restored from
+  // localStorage, re-fetch their project list so the app is fully usable
+  // after a page refresh.
+  useEffect(() => {
+    if (user?.userId) {
+      fetchUserProjects(user.userId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSelectProject = (project) => {
     setSubmittedProject(project);
     setActiveTab('Project Analysis');
+  };
+
+  const handleSelectProjectForAssessment = (project) => {
+    // Resolve the full project object from existing state so Risk Assessment
+    // receives every field it expects; fall back to the dashboard summary row.
+    const full = userProjects.find((p) => p.projectId === project.projectId)
+      || { ...project, projectType: project.industry };
+    setSubmittedProject(full);
+    setActiveTab('Risk Assessment');
   };
 
   const handleDeleteProject = async (projectId) => {
@@ -187,6 +228,8 @@ function App() {
         throw new Error(errorData?.error || 'Failed to delete project');
       }
       setUserProjects((prev) => prev.filter((p) => p.projectId !== projectId));
+      // Deletion changes totals too — drop the cached dashboard snapshot.
+      invalidateDashboardCache(user?.userId);
       if (submittedProject?.projectId === projectId) {
         handleReset();
       }
@@ -285,7 +328,16 @@ function App() {
           />
         );
       case 'Dashboard':
-        return <Dashboard />;
+        return (
+          <Dashboard
+            key={user?.userId ?? "guest"}
+            userId={user?.userId}
+            isLoggedIn={!!user}
+            onLoginClick={() => handleOpenAuth('login')}
+            onSelectProjectForAssessment={handleSelectProjectForAssessment}
+            onGoToProjectInput={() => handleTabChange('Project Input')}
+          />
+        );
       default:
         return null;
     }

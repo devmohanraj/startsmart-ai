@@ -26,6 +26,11 @@
       "description": "Groq API key used for risk assessment LLM calls."
     },
     {
+      "name": "groq.api.key.analysis",
+      "type": "java.lang.String",
+      "description": "Groq API key used for market analysis LLM calls (separate from the risk assessment key)."
+    },
+    {
       "name": "groq.api.url",
       "type": "java.lang.String",
       "description": "Groq chat completions endpoint (OpenAI-compatible)."

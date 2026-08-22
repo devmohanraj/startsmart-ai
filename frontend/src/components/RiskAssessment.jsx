@@ -195,7 +195,7 @@ function CardHeader({ title, subtitle, icon }) {
       {icon && <div className="w-9 h-9 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">{icon}</div>}
       <div>
         <h3 className="text-sm font-bold text-white">{title}</h3>
-        {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+        {subtitle && <p className="text-[13px] text-gray-400 mt-0.5">{subtitle}</p>}
       </div>
     </div>
   );
@@ -311,14 +311,14 @@ function SwotBlock({ title, icon, items = [], tone }) {
       {list.length > 0 ? (
         <ul className="space-y-1.5">
           {list.map((item, i) => (
-            <li key={i} className="flex gap-2 text-xs text-gray-300 leading-snug">
+            <li key={i} className="flex gap-2 text-[13px] text-gray-300 leading-snug">
               <span className={`mt-px shrink-0 ${t.bullet}`}>{"\u2022"}</span>
               <span className="min-w-0">{item}</span>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-xs text-gray-500">{"\u2014"}</p>
+        <p className="text-[13px] text-gray-500">{"\u2014"}</p>
       )}
     </div>
   );
@@ -659,7 +659,7 @@ function RiskAssessment({
           <h2 className="text-lg font-bold text-white mb-2">Could not generate the risk assessment</h2>
           <p className="text-sm text-gray-400 mb-2">{error}</p>
           {isPolling && (
-            <p className="text-xs font-medium text-indigo-400 mb-3 flex items-center justify-center gap-2">
+            <p className="text-[13px] font-medium text-indigo-400 mb-3 flex items-center justify-center gap-2">
               <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -735,7 +735,7 @@ function RiskAssessment({
         {/* Dashboard - ROW 1 / ROW 2 / ROW 3 / ROW 4 */}
         <div className="flex flex-col gap-5">
           {/* ROW 1 - 4 equal-height cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.07fr_1fr_1fr_0.88fr] gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.07fr_0.94fr_0.9fr_1.04fr] gap-5">
             {/* Risk Score */}
             <Card className="overflow-hidden">
               <CardHeader title="Risk Score" icon={<RiskIcon />} />
@@ -745,17 +745,17 @@ function RiskAssessment({
                   <span className={`w-2 h-2 rounded-full ${riskTheme.dot}`} />
                   {overallLevel} Risk
                 </span>
-                <p className="mt-3 text-xs text-gray-500">Weighted across all five risk categories</p>
+                <p className="mt-3 text-[13px] text-gray-500">Weighted across all five risk categories</p>
               </div>
               <div className="px-5 pb-5">
                 <div className="rounded-xl bg-gray-900/40 border border-gray-700/30 p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-gray-400">Success Probability</span>
+                    <span className="text-[13px] font-semibold text-gray-400">Success Probability</span>
                     {spMeta && <span className={`text-sm font-bold ${spMeta.text}`}>{successSp != null ? successSp : "\u2014"}%</span>}
                   </div>
                   <Bar value={successSp} colorClass={spMeta ? spMeta.bar : "bg-gray-500"} />
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-[11px] text-gray-500">Likelihood of a successful outcome</span>
+                    <span className="text-xs text-gray-500">Likelihood of a successful outcome</span>
                     {spMeta && (
                       <span className={`text-[11px] font-bold uppercase px-2 py-0.5 rounded-full ${spMeta.chip}`}>{spMeta.label}</span>
                     )}
@@ -770,8 +770,8 @@ function RiskAssessment({
               <div className="px-5 py-4 flex flex-col items-center text-center">
                 <RingGauge value={feasibility} size={128} stroke={11} color="#6366f1" subLabel="% feasible" />
                 <div className="mt-4 w-full rounded-xl bg-gray-900/40 border border-gray-700/30 p-3.5 text-center">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Feasibility Verdict</p>
-                  <p className="text-sm text-gray-200 leading-relaxed">
+                  <p className="text-[13px] font-medium text-gray-300 mb-1.5">Feasibility Verdict</p>
+                  <p className="text-xs text-gray-400 leading-relaxed">
                     {data?.feasibilityVerdict || "No feasibility verdict provided."}
                   </p>
                 </div>
@@ -789,7 +789,7 @@ function RiskAssessment({
                       const msev = v != null ? severityOf(100 - v) : "none";
                       return (
                         <div key={key}>
-                          <div className="flex items-center justify-between text-xs mb-1.5">
+                          <div className="flex items-center justify-between text-[13px] mb-1.5">
                             <span className="text-gray-300 font-medium">{METRIC_LABELS[key] || key}</span>
                             <span className="font-bold text-gray-100">{v != null ? v : "\u2014"}</span>
                           </div>
@@ -798,7 +798,7 @@ function RiskAssessment({
                       );
                     })
                   ) : (
-                    <p className="text-xs text-gray-500">No metrics returned.</p>
+                    <p className="text-[13px] text-gray-500">No metrics returned.</p>
                   )}
                 </div>
               </div>
@@ -810,28 +810,28 @@ function RiskAssessment({
               <div className="px-5 py-4 flex flex-col gap-3">
                 <div className="rounded-xl bg-gray-900/40 border border-gray-700/30 px-4 py-3">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-medium text-gray-300">Blended Financial Risk</span>
+                      <span className="text-[13px] font-medium text-gray-300">Blended Financial Risk</span>
                     <span className={`text-sm font-bold ${themeFor(severityOf(financial)).text}`}>
                       {financial != null ? financial : "\u2014"}<span className="text-[10px] text-gray-500 font-medium">/100</span>
                     </span>
                   </div>
                   <Bar value={financial} colorClass={themeFor(severityOf(financial)).bar} />
                   <div className="flex items-center justify-between mt-3 mb-1.5">
-                    <span className="text-xs font-medium text-gray-300">ML Historical Comparison</span>
+                      <span className="text-[13px] font-medium text-gray-300">ML Historical Comparison</span>
                     <span className="text-sm font-semibold text-gray-200">{mlOnlyFinancialRisk != null ? mlOnlyFinancialRisk : "\u2014"}</span>
                   </div>
                   <Bar value={mlOnlyFinancialRisk} colorClass="bg-indigo-500" />
                 </div>
                 <div className="rounded-xl bg-gray-900/40 border border-gray-700/30 p-3.5">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-medium text-gray-300">Budget Adequacy</span>
+                      <span className="text-[13px] font-medium text-gray-300">Budget Adequacy</span>
                     <span className={`text-sm font-bold ${themeFor(severityOf(budgetAdequacyRisk != null ? 100 - budgetAdequacyRisk : null)).text}`}>
                       {budgetAdequacyRisk != null ? budgetAdequacyRisk : "\u2014"}<span className="text-[10px] text-gray-500 font-medium">/100</span>
                     </span>
                   </div>
                   <Bar value={budgetAdequacyRisk} colorClass={themeFor(severityOf(budgetAdequacyRisk != null ? 100 - budgetAdequacyRisk : null)).bar} />
                   {budgetAdequacy.reasoning && (
-                    <p className="mt-2 text-[11px] text-gray-400 leading-relaxed">{budgetAdequacy.reasoning}</p>
+                    <p className="mt-2 text-xs text-gray-400 leading-relaxed">{budgetAdequacy.reasoning}</p>
                   )}
                 </div>
               </div>
@@ -853,12 +853,12 @@ function RiskAssessment({
                     className="rounded-xl border border-gray-700/30 bg-gray-900/30 p-3"
                   >
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-semibold text-gray-200">{c.label}</span>
+                      <span className="text-[13px] font-semibold text-gray-200">{c.label}</span>
                       <span className={`text-sm font-bold ${t.text}`}>{cs != null ? cs : "\u2014"}<span className="text-[10px] text-gray-500 font-medium">/100</span></span>
                     </div>
                     <Bar value={cs} colorClass={t.bar} />
                     {c.item?.reason ? (
-                      <p className="mt-2 text-[11px] text-gray-400 leading-relaxed">{c.item.reason}</p>
+                      <p className="mt-2 text-xs text-gray-400 leading-relaxed">{c.item.reason}</p>
                     ) : null}
                   </div>
                 );
@@ -891,12 +891,12 @@ function RiskAssessment({
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
-                              <p className="text-xs font-semibold text-white leading-snug">{title}</p>
+                              <p className="text-[13px] font-semibold text-white leading-snug">{title}</p>
                               <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${impact.cls}`}>
                                 Impact: {impact.label}
                               </span>
                             </div>
-                            <p className="mt-1.5 text-[11px] text-gray-300 leading-relaxed">{explanation}</p>
+                            <p className="mt-1.5 text-xs text-gray-300 leading-relaxed">{explanation}</p>
                             <span className={`mt-2 inline-flex items-center gap-1 text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${negative ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"}`}>
                               {negative ? "Increases risk" : "Improves success"}
                             </span>
@@ -906,7 +906,7 @@ function RiskAssessment({
                     );
                   })
                 ) : (
-                  <p className="text-xs text-gray-500">No risk factors returned.</p>
+                  <p className="text-[13px] text-gray-500">No risk factors returned.</p>
                 )}
               </div>
             </Card>

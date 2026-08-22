@@ -21,6 +21,7 @@ public class GeminiService {
     private final String apiKey;
     private final String groqApiUrl;
     private final String groqApiKey;
+    private final String groqApiKeyAnalysis;
     private final String groqModel;
 
     public GeminiService(
@@ -30,6 +31,7 @@ public class GeminiService {
             @Value("${gemini.api.key}") String apiKey,
             @Value("${groq.api.url:https://api.groq.com/openai/v1/chat/completions}") String groqApiUrl,
             @Value("${groq.api.key}") String groqApiKey,
+            @Value("${groq.api.key.analysis:}") String groqApiKeyAnalysis,
             @Value("${groq.model:llama-3.3-70b-versatile}") String groqModel) {
         this.webClient = webClientBuilder.build();
         this.objectMapper = objectMapper;
@@ -37,11 +39,20 @@ public class GeminiService {
         this.apiKey = apiKey;
         this.groqApiUrl = groqApiUrl;
         this.groqApiKey = groqApiKey;
+        this.groqApiKeyAnalysis = groqApiKeyAnalysis;
         this.groqModel = groqModel;
     }
 
-    @SuppressWarnings("unchecked")
+    public String getGroqApiKeyAnalysis() {
+        return groqApiKeyAnalysis;
+    }
+
     public String callGroq(String prompt) {
+        return callGroq(prompt, groqApiKey);
+    }
+
+    @SuppressWarnings("unchecked")
+    public String callGroq(String prompt, String apiKeyToUse) {
         Map<String, Object> requestBody = Map.of(
                 "model", groqModel,
                 "messages", List.of(
@@ -51,7 +62,7 @@ public class GeminiService {
         Map<String, Object> response = webClient.post()
                 .uri(groqApiUrl)
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + groqApiKey)
+                .header("Authorization", "Bearer " + apiKeyToUse)
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(Map.class)
@@ -100,19 +111,19 @@ public class GeminiService {
     public GeminiResponseDTO analyzeMarket(Project project) {
         String prompt = buildPrompt(project);
 
-        String rawJson = callGemini(prompt);
+        String rawJson = callGroq(prompt, groqApiKeyAnalysis);
         String cleaned = stripMarkdown(rawJson);
 
         try {
             GeminiResponseDTO dto = objectMapper.readValue(cleaned, GeminiResponseDTO.class);
             if (dto.getMarketData() == null) {
-                throw new GeminiException("Gemini returned incomplete data — missing marketData");
+                throw new GeminiException("Groq returned incomplete data — missing marketData");
             }
             return dto;
         } catch (GeminiException e) {
             throw e;
         } catch (Exception e) {
-            throw new GeminiException("Failed to parse Gemini response: " + e.getMessage(), e);
+            throw new GeminiException("Failed to parse Groq market analysis response: " + e.getMessage(), e);
         }
     }
 
@@ -135,7 +146,7 @@ public class GeminiService {
                 - Target Market: %s
                 - Description: %s
 
-                Respond with ONLY valid JSON. No markdown, no code fences, no explanation. Use this exact JSON structure:
+                Your ENTIRE response MUST be a single valid JSON object. No markdown, no code fences (never wrap the JSON in ```json or any code fence), no preamble, no commentary before or after the JSON, no trailing text. Use ONLY the exact camelCase keys shown below. Every key is REQUIRED - do not omit any key, do not add any extra key, and keep every string value inside double quotes. Use this exact JSON structure:
                 {
                   "marketData": {
                     "marketSizeTam": "2400000000",

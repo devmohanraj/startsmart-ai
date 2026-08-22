@@ -4,29 +4,30 @@ The Java backend (RecommendationService) ranks the five risk categories and
 ships the top three plus project context + SWOT here. Two nodes run inside a
 single compiled graph:
 
-  Node 1 "analyze"   — asks Gemini for specific, actionable recommendations
+  Node 1 "analyze"   — asks Groq for specific, actionable recommendations
                        (riskCategory, recommendation, mitigation) covering all
                        top categories in one JSON array.
-  Node 2 "sequence"  — asks Gemini to assign each recommendation a phase
+  Node 2 "sequence"  — asks Groq to assign each recommendation a phase
                        (Immediate / Next 30 Days / Next Quarter) while reasoning
                        about dependencies, producing the final roadmap.
 
 The graph is compiled once at module load (not per request) and re-invoked for
-every request. The Gemini key is read from the same GEMINI_API_KEY environment
-variable the Spring Boot prod profile uses for gemini.api.key.
+every request. This service uses its own dedicated GROQ_API_KEY environment
+variable (a third key, independent of the Market Analysis and Risk Assessment
+Groq keys used by the Java backend).
 """
 
 import json
 import os
 
 from langchain_core.messages import HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph
 from typing_extensions import TypedDict
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-print(f"DEBUG: GEMINI_API_KEY loaded as: {repr(GEMINI_API_KEY)}")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+print(f"DEBUG: GROQ_API_KEY loaded as: {repr(GROQ_API_KEY)}")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 
 PHASES = ("Immediate", "Next 30 Days", "Next Quarter")
 
@@ -42,21 +43,21 @@ class RecommendationState(TypedDict):
 
 
 # ---------------------------------------------------------------
-# Gemini plumbing (one retry on failure, then a clear error naming the node)
+# Groq plumbing (one retry on failure, then a clear error naming the node)
 # ---------------------------------------------------------------
-def _build_llm() -> ChatGoogleGenerativeAI:
-    api_key = GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
+def _build_llm() -> ChatGroq:
+    api_key = GROQ_API_KEY or os.environ.get("GROQ_API_KEY")
     if not api_key:
-        raise RuntimeError("GEMINI_API_KEY environment variable is not set")
-    return ChatGoogleGenerativeAI(
-        model=GEMINI_MODEL,
-        google_api_key=api_key,
+        raise RuntimeError("GROQ_API_KEY environment variable is not set")
+    return ChatGroq(
+        model=GROQ_MODEL,
+        groq_api_key=api_key,
         temperature=0.7,
     )
 
 
-def _call_gemini(prompt: str) -> str:
-    """Calls Gemini; retries once on failure, then raises a RuntimeError whose
+def _call_groq(prompt: str) -> str:
+    """Calls Groq; retries once on failure, then raises a RuntimeError whose
     message includes the underlying cause. Node identification is added by the
     node wrappers, and the raise happens outside the except handler so the
     exception carries no implicit __context__ (LangGraph preserves the
@@ -70,7 +71,9 @@ def _call_gemini(prompt: str) -> str:
             text = getattr(response, "content", None)
 
             # Handle the case where content is a list of content blocks
-            # (e.g. [{'type': 'text', 'text': '...'}]) instead of a plain string
+            # (e.g. [{'type': 'text', 'text': '...'}]) instead of a plain
+            # string. Kept defensively: ChatGroq normally returns a plain
+            # string, in which case this branch never triggers.
             if isinstance(text, list):
                 extracted = []
                 for block in text:
@@ -81,11 +84,11 @@ def _call_gemini(prompt: str) -> str:
                 text = "".join(extracted)
 
             if text is None or (isinstance(text, str) and not text.strip()):
-                raise ValueError("Gemini returned an empty response")
+                raise ValueError("Groq returned an empty response")
             return text
         except Exception as exc:  # noqa: BLE001 — must surface node-level error
             last_error = exc
-    raise RuntimeError(f"Gemini call failed after 1 retry: {last_error}")
+    raise RuntimeError(f"Groq call failed after 1 retry: {last_error}")
 
 
 # ---------------------------------------------------------------
@@ -113,7 +116,7 @@ def _parse_json_array(text: str) -> list:
         parsed = json.loads(text)
     except json.JSONDecodeError as exc:
         error = (
-            f"Gemini returned unparseable JSON: {exc}. "
+            f"Groq returned unparseable JSON: {exc}. "
             f"Raw output: {text[:500]}"
         )
     if error:
@@ -212,7 +215,7 @@ def analyze_and_recommend(state: RecommendationState) -> dict:
     recommendations = None
     try:
         prompt = _build_analyze_prompt(state)
-        raw = _call_gemini(prompt)
+        raw = _call_groq(prompt)
         cleaned = _strip_markdown(raw)
         recommendations = _parse_json_array(cleaned)
     except Exception as exc:  # noqa: BLE001 — must surface node-level error
@@ -259,7 +262,7 @@ def sequence_into_roadmap(state: RecommendationState) -> dict:
     roadmap = None
     try:
         prompt = _build_sequence_prompt(state)
-        raw = _call_gemini(prompt)
+        raw = _call_groq(prompt)
         cleaned = _strip_markdown(raw)
         roadmap = _parse_json_array(cleaned)
     except Exception as exc:  # noqa: BLE001 — must surface node-level error

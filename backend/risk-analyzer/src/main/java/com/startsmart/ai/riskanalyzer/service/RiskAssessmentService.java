@@ -168,12 +168,12 @@ public class RiskAssessmentService {
                 For hardware, manufacturing, logistics-heavy, inventory-heavy, or infrastructure-heavy projects: require higher budget adequacy and increase risk only when the budget truly cannot support the required MVP.
                 Do not cluster scores in the middle range. Use: 0-20 = very low risk; 21-40 = low risk; 41-60 = moderate risk; 61-80 = high risk; 81-100 = severe risk. Only give 60+ risk scores when there are specific, explainable problems.
 
-                Your ENTIRE response MUST be a single valid JSON object. No markdown, no code fences (never wrap the JSON in ```json or any code fence), no preamble, no commentary before or after the JSON, no trailing text. Use ONLY the exact snake_case keys shown below. Every key is REQUIRED - do not omit any key, do not add any extra key, and keep every string value inside double quotes.
+                Your ENTIRE response MUST be a single valid JSON object. No markdown, no code fences (never wrap the JSON in ```json or any code fence), no preamble, no commentary before or after the JSON, no trailing text. Use ONLY the exact snake_case keys shown below. Every key is REQUIRED - do not omit any key, do not add any extra key, and keep every string value inside double quotes. Additionally, each of the four swot lists - strengths, weaknesses, opportunities, threats - MUST contain AT LEAST 4 distinct, project-specific points; never return fewer than 4 items in any of them.
 
                 {
                   "budget_adequacy": {
                     "score": <0-100, where 0 = totally inadequate budget for this scope, 100 = budget comfortably covers this scope>,
-                    "reasoning": "<1-2 sentences judging whether \u20B9{budget_inr} is realistic for THIS SPECIFIC project's scope, technical complexity, and business model \u2014 e.g. a lean single-feature SaaS idea needs far less than a hardware/IoT product with physical deployment costs. Judge based on what the project needs to reach a testable MVP, not against generic industry funding benchmarks.>"
+                    "reasoning": "<1-2 sentences judging whether \u20B9{budget_inr} is realistic for THIS SPECIFIC project's scope, technical complexity, and business model - cover what the budget can and cannot fund, and the key cost assumptions behind your judgement. e.g. a lean single-feature SaaS idea needs far less than a hardware/IoT product with physical deployment costs. Judge based on what the project needs to reach a testable MVP, not against generic industry funding benchmarks.>"
                   },
                   "market_risk": {
                     "score": <0-100, higher = riskier>,
@@ -198,7 +198,7 @@ public class RiskAssessmentService {
                     "opportunities": ["...", "...", "...", "..."],
                     "threats": ["...", "...", "...", "..."]
                   },
-                  "feasibility_verdict": "<1-2 sentence plain-language verdict>",
+                  "feasibility_verdict": "<1-2 sentence plain-language verdict covering feasibility, key conditions/caveats, and overall outlook>",
                   "assessment_metrics": {
                     "financial_sustainability": <0-100>,
                     "team_capability": <0-100>,
@@ -214,7 +214,7 @@ public class RiskAssessmentService {
                 {
                   "budget_adequacy": {
                     "score": 75,
-                    "reasoning": "The stated budget is realistic for a focused software MVP and comfortably covers reaching a testable version."
+                    "reasoning": "The stated budget is realistic for a focused software MVP and comfortably covers reaching a testable version. Hardware, inventory, or large-scale paid acquisition would not fit within this amount."
                   },
                   "market_risk": {
                     "score": 45,
@@ -234,12 +234,12 @@ public class RiskAssessmentService {
                   },
                   "risk_narrative": "The financial baseline is moderate, and the four AI-scored categories are broadly contained, resulting in a moderate overall risk profile.",
                   "swot": {
-                    "strengths": ["focused MVP scope", "experienced founding team", "low-cost technology stack"],
-                    "weaknesses": ["lean team", "no brand awareness yet", "single revenue stream"],
-                    "opportunities": ["growing domestic market", "underserved customer segment", "potential channel partnerships"],
-                    "threats": ["better-funded competitors", "regulatory changes", "rising customer acquisition costs"]
+                    "strengths": ["focused MVP scope", "experienced founding team", "low-cost technology stack", "clear niche positioning"],
+                    "weaknesses": ["lean team", "no brand awareness yet", "single revenue stream", "limited marketing budget"],
+                    "opportunities": ["growing domestic market", "underserved customer segment", "potential channel partnerships", "rising digital adoption among target SMEs"],
+                    "threats": ["better-funded competitors", "regulatory changes", "rising customer acquisition costs", "rapid feature duplication by incumbents"]
                   },
-                  "feasibility_verdict": "The project is feasible within the stated budget if the MVP rollout stays disciplined.",
+                  "feasibility_verdict": "The project is feasible within the stated budget if the MVP rollout stays disciplined. Scaling and user acquisition will still require careful planning.",
                   "assessment_metrics": {
                     "financial_sustainability": 70,
                     "team_capability": 65,

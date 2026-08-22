@@ -58,11 +58,11 @@ function RecommendationCard({ item }) {
         <CategoryTag category={item.riskCategory} />
         <PriorityBadge priority={item.priority} />
       </div>
-      <p className="text-sm text-gray-100 leading-relaxed">{item.recommendationText}</p>
+      <p className="text-[13px] text-gray-100 leading-relaxed">{item.recommendationText}</p>
       {item.mitigationStrategy && (
         <div className="mt-3 pt-3 border-t border-gray-700/40">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-400 mb-1">Mitigation Strategy</p>
-          <p className="text-[13px] text-gray-300 leading-relaxed">{item.mitigationStrategy}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-400 mb-1">Mitigation Strategy</p>
+          <p className="text-xs text-gray-300 leading-relaxed">{item.mitigationStrategy}</p>
         </div>
       )}
     </div>
@@ -178,12 +178,12 @@ function RecommendationsPanel({ projectId, riskData, cachedData, onCache }) {
         </div>
         <div>
           <h3 className="text-sm font-bold text-white">Recommendations</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <p className="text-[13px] text-gray-400 mt-0.5">
             Actionable next steps to de-risk your startup
           </p>
         </div>
         {(generating || loading) && (
-          <span className="ml-auto text-[11px] text-indigo-300 animate-pulse inline-flex items-center gap-1.5">
+          <span className="ml-auto text-xs text-indigo-300 animate-pulse inline-flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-full border-2 border-indigo-500/30 border-t-indigo-400 animate-spin" />
             {generating ? "Generating with AI…" : "Loading…"}
           </span>
@@ -193,7 +193,7 @@ function RecommendationsPanel({ projectId, riskData, cachedData, onCache }) {
       <div className="px-5 py-4">
         {error ? (
           <div>
-            <p className="text-sm text-red-400 mb-2">{error}</p>
+            <p className="text-[13px] text-red-400 mb-2">{error}</p>
             <p className="text-xs text-gray-400">
               If generation failed on the server, the panel will retry automatically once the
               recommendations are ready.
@@ -206,7 +206,7 @@ function RecommendationsPanel({ projectId, riskData, cachedData, onCache }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
               </svg>
             </div>
-            <p className="text-sm text-gray-300">
+            <p className="text-[13px] text-gray-300">
               {generating ? "Crafting tailored recommendations…" : "No recommendations yet."}
             </p>
           </div>
@@ -215,7 +215,7 @@ function RecommendationsPanel({ projectId, riskData, cachedData, onCache }) {
             {grouped.map(({ phase, items }) => (
               <div key={phase} className="flex flex-col h-full min-h-0">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-gray-200">{phase}</span>
+                  <span className="text-[13px] font-bold uppercase tracking-wider text-gray-200">{phase}</span>
                   <span className="h-px flex-1 bg-gray-700/50" />
                 </div>
                 {items.length > 0 ? (
@@ -225,7 +225,7 @@ function RecommendationsPanel({ projectId, riskData, cachedData, onCache }) {
                     ))}
                   </div>
                 ) : (
-                  <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-gray-700/50 p-4 text-center text-xs text-gray-500">
+                  <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-gray-700/50 p-4 text-center text-[13px] text-gray-500">
                     {EMPTY_PHASE_TEXT[phase] || `No ${phase.toLowerCase()} actions identified`}
                   </div>
                 )}
