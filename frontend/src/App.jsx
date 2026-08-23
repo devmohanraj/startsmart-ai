@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import ProjectForm from './components/ProjectForm';
@@ -10,14 +11,29 @@ import MyProjects from './components/MyProjects';
 import RiskAssessment from './components/RiskAssessment';
 import Dashboard from './components/Dashboard';
 import { invalidateDashboardCache } from './utils/dashboardCache';
+import { projectsApi } from './services/api';
 import './index.css';
 
 if ('scrollRestoration' in window.history) {
   window.history.scrollRestoration = 'manual';
 }
 
+const TAB_ROUTES = {
+  'Project Input': '/',
+  'Project Analysis': '/project-analysis',
+  'My Projects': '/my-projects',
+  'Risk Assessment': '/risk-assessment',
+  'Dashboard': '/dashboard',
+};
+
+const ROUTE_TO_TAB = Object.fromEntries(
+  Object.entries(TAB_ROUTES).map(([tab, route]) => [route, tab]),
+);
+
 function App() {
-  const [activeTab, setActiveTab] = useState('Project Input');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeTab = ROUTE_TO_TAB[location.pathname] || 'Project Input';
   const [submittedProject, setSubmittedProject] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -87,7 +103,7 @@ function App() {
     setSubmittedProject(project);
     setIsAnalyzing(true);
     setShowRiskIndicator(true);
-    setActiveTab('Project Analysis');
+    navigate(TAB_ROUTES['Project Analysis']);
     setUserProjects((prev) => {
       if (prev.some((p) => p.projectId === project.projectId)) return prev;
       return [project, ...prev];
@@ -105,7 +121,14 @@ function App() {
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-  }, [activeTab, submittedProject]);
+  }, [location.pathname, submittedProject]);
+
+  // Route-derived state: deep links / browser back-forward must land in the
+  // exact same UI state the old tab handlers produced when switching views.
+  const effectiveSubmittedProject =
+    activeTab === 'Project Input' ? null : submittedProject;
+  const riskIndicatorVisible =
+    activeTab === 'Risk Assessment' ? false : showRiskIndicator;
 
   const handleAnalysisComplete = useCallback(() => {
     setIsAnalyzing(false);
@@ -161,12 +184,12 @@ function App() {
     }
     setUserProjects([]);
     setSubmittedProject(null);
-    setActiveTab('Project Input');
+    navigate(TAB_ROUTES['Project Input']);
     setShowRiskIndicator(false);
   };
 
   const handleMyProjects = () => {
-    setActiveTab('My Projects');
+    navigate(TAB_ROUTES['My Projects']);
     setSubmittedProject(null);
     setIsAnalyzing(false);
     setShowRiskIndicator(false);
@@ -179,9 +202,7 @@ function App() {
   const fetchUserProjects = async (userId) => {
     setLoadingProjects(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/projects/user/${userId}`);
-      if (!res.ok) throw new Error("Failed to fetch projects");
-      const projects = await res.json();
+      const projects = await projectsApi.list(userId);
       setUserProjects(projects);
     } catch (err) {
       console.error("Failed to fetch projects:", err);
@@ -201,7 +222,7 @@ function App() {
 
   const handleSelectProject = (project) => {
     setSubmittedProject(project);
-    setActiveTab('Project Analysis');
+    navigate(TAB_ROUTES['Project Analysis']);
   };
 
   const handleSelectProjectForAssessment = (project) => {
@@ -209,20 +230,14 @@ function App() {
     const full = userProjects.find((p) => p.projectId === project.projectId)
       || { ...project, projectType: project.industry };
     setSubmittedProject(full);
-    setActiveTab('Risk Assessment');
+    navigate(TAB_ROUTES['Risk Assessment']);
   };
 
   const handleDeleteProject = async (projectId) => {
     if (!user) return;
     setDeletingProjectId(projectId);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/projects/${projectId}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || 'Failed to delete project');
-      }
+      await projectsApi.remove(projectId);
       setUserProjects((prev) => prev.filter((p) => p.projectId !== projectId));
       // Deletion also changes totals — drop the cached dashboard snapshot.
       invalidateDashboardCache(user?.userId);
@@ -239,104 +254,16 @@ function App() {
   };
 
   const handleTabChange = (tab) => {
-    setActiveTab(tab);
+    navigate(TAB_ROUTES[tab]);
     if (tab === 'Risk Assessment') setShowRiskIndicator(false);
     if (tab === 'Project Input') setSubmittedProject(null);
   };
 
   const handleHome = () => {
-    setActiveTab('Project Input');
+    navigate(TAB_ROUTES['Project Input']);
     setSubmittedProject(null);
     setIsAnalyzing(false);
     setShowRiskIndicator(false);
-  };
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'Project Input':
-        return (
-          <div className="max-w-345 mx-auto px-4 sm:px-6 py-4">
-            {submittedProject ? (
-              <div className="animate-slide-up stagger-1 w-full">
-                <MarketAnalysisPanel
-                  projectId={submittedProject.projectId}
-                  onAnalysisComplete={handleAnalysisComplete}
-                  onCacheAnalysis={handleCacheAnalysis}
-                  cachedData={analysisCache[submittedProject.projectId]}
-                  project={submittedProject}
-                  onReset={handleReset}
-                />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 w-full">
-                <div className="animate-slide-up stagger-1 lg:col-span-6">
-                  <AboutPanel />
-                </div>
-                <div className="animate-slide-up stagger-2 lg:col-span-6">
-                  <ProjectForm
-                    onSuccess={handleProjectSubmit}
-                    isLoggedIn={!!user}
-                    onRequireAuth={() => handleOpenAuth('signup')}
-                    userId={user?.userId}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      case 'Project Analysis':
-        return (
-          <ProjectAnalysis
-            project={submittedProject}
-            projects={userProjects}
-            isLoggedIn={!!user}
-            onSelectProject={handleSelectProjectForView}
-            onLoginClick={() => handleOpenAuth('login')}
-            onAnalysisComplete={handleAnalysisComplete}
-            onCacheAnalysis={handleCacheAnalysis}
-            onReset={handleReset}
-            analysisCache={analysisCache}
-          />
-        );
-      case 'My Projects':
-        return (
-          <MyProjects
-            projects={userProjects}
-            onSelectProject={handleSelectProject}
-            onDeleteProject={handleDeleteProject}
-            loading={loadingProjects}
-            deletingProjectId={deletingProjectId}
-          />
-        );
-      case 'Risk Assessment':
-        return (
-          <RiskAssessment
-            project={submittedProject}
-            projects={userProjects}
-            isLoggedIn={!!user}
-            onSelectProject={handleSelectProjectForView}
-            onLoginClick={() => handleOpenAuth('login')}
-            onReset={handleReset}
-            riskAssessmentCache={riskAssessmentCache}
-            onAssessmentLoaded={handleAssessmentLoaded}
-            recommendationCache={recommendationCache}
-            onRecommendationsLoaded={handleRecommendationsLoaded}
-          />
-        );
-      case 'Dashboard':
-        return (
-          <Dashboard
-            key={user?.userId ?? "guest"}
-            userId={user?.userId}
-            isLoggedIn={!!user}
-            onLoginClick={() => handleOpenAuth('login')}
-            onSelectProjectForAssessment={handleSelectProjectForAssessment}
-            onGoToProjectInput={() => handleTabChange('Project Input')}
-          />
-        );
-      default:
-        return null;
-    }
   };
 
   return (
@@ -349,13 +276,106 @@ function App() {
         onLoginClick={() => handleOpenAuth('login')}
         onMyProjects={handleMyProjects}
         onLogout={handleLogout}
-        showRiskIndicator={showRiskIndicator}
+        showRiskIndicator={riskIndicatorVisible}
       />
       <main className="flex-1 animate-[fadeIn_0.4s_ease]">
-        {renderContent()}
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <div className="max-w-345 mx-auto px-4 sm:px-6 py-4">
+                {effectiveSubmittedProject ? (
+                  <div className="animate-slide-up stagger-1 w-full">
+                    <MarketAnalysisPanel
+                      projectId={effectiveSubmittedProject.projectId}
+                      onAnalysisComplete={handleAnalysisComplete}
+                      onCacheAnalysis={handleCacheAnalysis}
+                      cachedData={analysisCache[effectiveSubmittedProject.projectId]}
+                      project={effectiveSubmittedProject}
+                      onReset={handleReset}
+                    />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 w-full">
+                    <div className="animate-slide-up stagger-1 lg:col-span-6">
+                      <AboutPanel />
+                    </div>
+                    <div className="animate-slide-up stagger-2 lg:col-span-6">
+                      <ProjectForm
+                        onSuccess={handleProjectSubmit}
+                        isLoggedIn={!!user}
+                        onRequireAuth={() => handleOpenAuth('signup')}
+                        userId={user?.userId}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            }
+          />
+          <Route
+            path="/project-analysis"
+            element={
+              <ProjectAnalysis
+                project={effectiveSubmittedProject}
+                projects={userProjects}
+                isLoggedIn={!!user}
+                onSelectProject={handleSelectProjectForView}
+                onLoginClick={() => handleOpenAuth('login')}
+                onAnalysisComplete={handleAnalysisComplete}
+                onCacheAnalysis={handleCacheAnalysis}
+                onReset={handleReset}
+                analysisCache={analysisCache}
+              />
+            }
+          />
+          <Route
+            path="/my-projects"
+            element={
+              <MyProjects
+                projects={userProjects}
+                onSelectProject={handleSelectProject}
+                onDeleteProject={handleDeleteProject}
+                loading={loadingProjects}
+                deletingProjectId={deletingProjectId}
+              />
+            }
+          />
+          <Route
+            path="/risk-assessment"
+            element={
+              <RiskAssessment
+                project={effectiveSubmittedProject}
+                projects={userProjects}
+                isLoggedIn={!!user}
+                onSelectProject={handleSelectProjectForView}
+                onLoginClick={() => handleOpenAuth('login')}
+                onReset={handleReset}
+                riskAssessmentCache={riskAssessmentCache}
+                onAssessmentLoaded={handleAssessmentLoaded}
+                recommendationCache={recommendationCache}
+                onRecommendationsLoaded={handleRecommendationsLoaded}
+              />
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <Dashboard
+                key={user?.userId ?? "guest"}
+                userId={user?.userId}
+                isLoggedIn={!!user}
+                onLoginClick={() => handleOpenAuth('login')}
+                onSelectProjectForAssessment={handleSelectProjectForAssessment}
+                onGoToProjectInput={() => handleTabChange('Project Input')}
+              />
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
 
-      {isAnalyzing && submittedProject && (
+      {isAnalyzing && effectiveSubmittedProject && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 flex flex-col items-center gap-4">
             <svg className="w-12 h-12 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">

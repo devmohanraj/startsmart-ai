@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import ProjectSummary from "./ProjectSummary";
+import { marketAnalysisApi } from "../services/api";
 
 function Skeleton({ className = "" }) {
   return (
@@ -206,11 +207,19 @@ function MarketAnalysisPanel({
 
     const runFetchCycle = async () => {
       try {
-        const url = `${import.meta.env.VITE_API_URL}/api/projects/${myProjectId}/market-analysis`;
-
-        const res = await fetch(url, { method: "GET" });
-        if (res.ok) {
-          const json = await res.json();
+        // ONE initial GET; a 404 means no analysis exists yet, so generate it.
+        const result = await marketAnalysisApi.get(myProjectId);
+        if (result.ok) {
+          if (isCurrentCycle()) {
+            setData(result.data);
+            setLoading(false);
+            if (onAnalysisComplete) onAnalysisComplete();
+            if (onCacheAnalysis) onCacheAnalysis(myProjectId, result.data);
+          }
+          return;
+        }
+        if (result.notFound) {
+          const json = await marketAnalysisApi.generate(myProjectId);
           if (isCurrentCycle()) {
             setData(json);
             setLoading(false);
@@ -219,24 +228,6 @@ function MarketAnalysisPanel({
           }
           return;
         }
-        if (res.status === 404) {
-          const postRes = await fetch(url, { method: "POST" });
-          if (!postRes.ok) {
-            const body = await postRes.json().catch(() => null);
-            throw new Error(
-              body?.error || `Request failed with status ${postRes.status}`,
-            );
-          }
-          const json = await postRes.json();
-          if (isCurrentCycle()) {
-            setData(json);
-            setLoading(false);
-            if (onAnalysisComplete) onAnalysisComplete();
-            if (onCacheAnalysis) onCacheAnalysis(myProjectId, json);
-          }
-          return;
-        }
-        throw new Error(`Request failed with status ${res.status}`);
       } catch (err) {
         if (!isCurrentCycle()) return;
         setError(err.message);
@@ -261,15 +252,8 @@ function MarketAnalysisPanel({
     if (!isServerError) return;
 
     const pollInterval = setInterval(() => {
-      fetch(`${import.meta.env.VITE_API_URL}/api/projects/${projectId}/market-analysis`, {
-        method: "GET",
-      })
-        .then(async (res) => {
-          if (!res.ok) {
-            throw new Error(`Request failed with status ${res.status}`);
-          }
-          return res.json();
-        })
+      marketAnalysisApi
+        .poll(projectId)
         .then((json) => {
           setData(json);
           setError("");
@@ -296,18 +280,8 @@ function MarketAnalysisPanel({
     setError("");
     setData(null);
 
-    fetch(`${import.meta.env.VITE_API_URL}/api/projects/${projectId}/market-analysis`, {
-      method: "POST",
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const body = await res.json().catch(() => null);
-          throw new Error(
-            body?.error || `Request failed with status ${res.status}`,
-          );
-        }
-        return res.json();
-      })
+    marketAnalysisApi
+      .generate(projectId)
       .then((json) => {
         setData(json);
         if (onCacheAnalysis) onCacheAnalysis(projectId, json);

@@ -5,6 +5,7 @@ import {
   readDashboardCache,
   writeDashboardCache,
 } from "../utils/dashboardCache";
+import { dashboardApi } from "../services/api";
 
 function severityOf(score) {
   if (score == null || Number.isNaN(Number(score))) return "none";
@@ -410,16 +411,7 @@ function Dashboard({
 
     (async () => {
       try {
-        const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/dashboard/summary?userId=${userId}`,
-        );
-        if (!res.ok) {
-          const body = await res.json().catch(() => null);
-          throw new Error(
-            body?.error || `Request failed with status ${res.status}`,
-          );
-        }
-        const json = await res.json();
+        const json = await dashboardApi.summary(userId);
         if (cancelled) return;
         setFetchedData(json);
         setError("");

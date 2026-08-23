@@ -1,5 +1,6 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
+import { projectsApi } from "../services/api";
 
 const INDUSTRIES = [
   "Technology",
@@ -65,20 +66,7 @@ function ProjectForm({ onSuccess, isLoggedIn, onRequireAuth, userId }) {
     };
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/projects?userId=${userId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(
-          body?.error || `Request failed with status ${res.status}`,
-        );
-      }
-
-      const result = await res.json();
+      const result = await projectsApi.create(userId, payload);
       setFormData(INITIAL_FORM);
       toast.success("Project submitted successfully!");
       if (onSuccess) onSuccess(result);

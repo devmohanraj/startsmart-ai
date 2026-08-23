@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { authApi } from "../services/api";
 
 function AuthModal({ isOpen, onClose, initialMode = "login", onAuthSuccess }) {
   const [mode, setMode] = useState(initialMode);
@@ -37,25 +38,13 @@ function AuthModal({ isOpen, onClose, initialMode = "login", onAuthSuccess }) {
     setError("");
 
     try {
-      const url = mode === "login"
-        ? `${import.meta.env.VITE_API_URL}/api/auth/login`
-        : `${import.meta.env.VITE_API_URL}/api/auth/signup`;
-
       const body = mode === "login"
         ? { email: formData.email, password: formData.password }
         : formData;
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Authentication failed");
-      }
+      const data = mode === "login"
+        ? await authApi.login(body)
+        : await authApi.signup(body);
 
       if (onAuthSuccess) {
         onAuthSuccess({

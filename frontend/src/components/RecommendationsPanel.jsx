@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { recommendationsApi } from "../services/api";
 
 const PHASES = ["Immediate", "Next 30 Days", "Next Quarter"];
 
@@ -76,22 +77,9 @@ function RecommendationsPanel({ projectId, riskData, cachedData, onCache }) {
 
   const loading = recommendations === null && !error && !generating;
 
-  const urlFor = useCallback(
-    (id) => `${import.meta.env.VITE_API_URL}/api/projects/${id}/recommendations`,
-    [],
-  );
-
   const fetchRecommendations = useCallback(
-    async (id, method) => {
-      const res = await fetch(urlFor(id), { method });
-      if (res.status === 404 && method === "GET") throw new Error("NOT_FOUND");
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error || `Request failed with status ${res.status}`);
-      }
-      return res.json();
-    },
-    [urlFor],
+    async (id, method) => recommendationsApi.fetchOrGenerate(id, method),
+    [],
   );
 
   useEffect(() => {

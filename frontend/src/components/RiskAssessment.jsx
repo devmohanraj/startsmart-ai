@@ -3,6 +3,7 @@ import ProjectSelector from "./ProjectSelector";
 import ProjectCatalog from "./ProjectCatalog";
 import AuthGateMessage from "./AuthGateMessage";
 import RecommendationsPanel from "./RecommendationsPanel";
+import { riskAnalysisApi } from "../services/api";
 
 const CATEGORY_ORDER = [
   { key: "financial_risk", label: "Financial" },
@@ -372,22 +373,9 @@ function RiskAssessment({
   // never while merely fetching an already-generated assessment from the DB (GET).
   const showPopup = isGenerating;
 
-  const urlFor = useCallback(
-    (id) => `${import.meta.env.VITE_API_URL}/api/projects/${id}/risk-analysis`,
-    [],
-  );
-
   const fetchAssessment = useCallback(
-    async (id, method) => {
-      const res = await fetch(urlFor(id), { method });
-      if (res.status === 404 && method === "GET") throw new Error("NOT_FOUND");
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error || `Request failed with status ${res.status}`);
-      }
-      return res.json();
-    },
-    [urlFor],
+    async (id, method) => riskAnalysisApi.fetchOrGenerate(id, method),
+    [],
   );
 
   useEffect(() => {
