@@ -54,7 +54,6 @@ function Navbar({ activeTab, onTabChange, onHome, user, onLoginClick, onMyProjec
           </span>
         </button>
 
-        {/* Desktop tabs */}
         <div className="hidden md:flex items-center gap-1" role="tablist">
           {TABS.map((tab) => (
             <button
@@ -78,7 +77,6 @@ function Navbar({ activeTab, onTabChange, onHome, user, onLoginClick, onMyProjec
             </button>
           ))}
 
-          {/* Auth section */}
           {user ? (
             <div className="relative ml-2" ref={dropdownRef}>
               <button
@@ -132,7 +130,6 @@ function Navbar({ activeTab, onTabChange, onHome, user, onLoginClick, onMyProjec
           )}
         </div>
 
-        {/* Mobile menu button */}
         <div className="md:hidden flex items-center gap-2">
           {!user && (
             <button

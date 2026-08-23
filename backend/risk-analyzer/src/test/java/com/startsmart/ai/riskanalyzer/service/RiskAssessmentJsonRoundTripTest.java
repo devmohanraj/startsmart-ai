@@ -37,7 +37,6 @@ class RiskAssessmentJsonRoundTripTest {
         assertTrue(json.contains("\"market_risk\":{\"score\":55.0,\"reason\":\"competitive segment\",\"source\":\"LLM\"}"));
         assertTrue(json.contains("\"ml_only_financial_risk\":87.3"));
         assertTrue(json.contains("\"budget_adequacy\":{\"score\":80,\"reasoning\":\"₹18,00,000 comfortably covers a focused SaaS MVP\"}"));
-        // Null categories must not be written
         assertFalse(json.contains("technical_risk"));
         assertFalse(json.contains("operational_risk"));
         assertFalse(json.contains("execution_risk"));
@@ -116,13 +115,11 @@ class RiskAssessmentJsonRoundTripTest {
 
     @Test
     void formatInrUsesIndianNumberingForBudgetReasons() {
-        // 18,00,000 (18 lakh) and 1,25,00,00,000 (1.25 crore-scale) style grouping
         assertEquals("₹18,00,000", RiskAssessmentService.formatInr(new BigDecimal("1800000")));
         assertEquals("₹50,00,000", RiskAssessmentService.formatInr(new BigDecimal("5000000")));
         assertEquals("₹12,34,567", RiskAssessmentService.formatInr(new BigDecimal("1234567")));
         assertEquals("₹12,34,56,789", RiskAssessmentService.formatInr(new BigDecimal("123456789")));
         assertEquals("₹999", RiskAssessmentService.formatInr(new BigDecimal("999.4")));
-        // Whole-rupee budgets never show decimals (no ".00" suffix)
         assertTrue(RiskAssessmentService.formatInr(new BigDecimal("1800000")).contains("18,00,000"));
         assertNull(RiskAssessmentService.formatInr(null));
     }

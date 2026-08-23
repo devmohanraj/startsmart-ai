@@ -1,8 +1,5 @@
-// ---------------------------------------------------------------
-// Dashboard summary cache (per user, localStorage)
-// Fresh snapshots skip the network entirely; older ones are shown
-// instantly and refreshed in the background (stale-while-revalidate).
-// ---------------------------------------------------------------
+// Per-user dashboard summary cache (localStorage): fresh snapshots skip the
+// network; older ones render instantly and revalidate in the background.
 export const DASHBOARD_CACHE_TTL = 60 * 1000;
 
 export function dashboardCacheKey(userId) {
@@ -39,9 +36,6 @@ export function writeDashboardCache(userId, data) {
   }
 }
 
-// Called by App whenever the user's projects change (submit/delete) so the
-// next Dashboard visit fetches fresh summary data instead of trusting a
-// snapshot that predates the change.
 export function invalidateDashboardCache(userId) {
   if (!userId) return;
   try {

@@ -22,9 +22,6 @@ app = FastAPI(
     version="3.0.0",
 )
 
-# -------------------------------------------------
-# Load model + schema artifacts once at startup
-# -------------------------------------------------
 model = joblib.load("risk_model.pkl")
 
 with open("model_columns.json") as f:
@@ -39,9 +36,7 @@ explainer = shap.TreeExplainer(model)
 # The model was trained on USD-denominated Crunchbase funding data.
 INR_TO_USD_RATE = 1 / 83.0
 
-# Maps the form's simplified Industry dropdown -> the model's trained
-# category taxonomy (Crunchbase categories). Anything unmapped falls
-# back to "Other".
+# Form Industry dropdown -> Crunchbase category taxonomy; unmapped falls back to "Other".
 INDUSTRY_TO_MODEL_CATEGORY = {
     "Technology": "Software",
     "Healthcare": "Health Care",
@@ -52,26 +47,18 @@ INDUSTRY_TO_MODEL_CATEGORY = {
     "Other": "Other",
 }
 
-# Below this raw USD-equivalent budget, predictions are at the extreme
-# edge of what the model saw during training (idea-stage budgets are far
-# below the typical funded-company amounts in the training data). This
-# doesn't change the score — it just adds an honest confidence note
-# instead of presenting a falsely-precise extreme number.
+# Below this USD-equivalent budget we're at the extreme edge of the model's training data;
+# the score stands, but a confidence note replaces a falsely-precise number.
 LOW_BUDGET_USD_THRESHOLD = 10_000
 
 
-# -------------------------------------------------
-# Request schema — matches the real submission form
-# -------------------------------------------------
+# Request schema — matches the real submission form.
 class ProjectFeatures(BaseModel):
     budget_inr: float = Field(..., gt=0, description="Project budget in INR")
     industry: str = Field(..., description="Industry/Sector dropdown value")
     is_india: int = Field(default=1, ge=0, le=1, description="1 if India-based (default)")
 
 
-# -------------------------------------------------
-# Response schema
-# -------------------------------------------------
 class RiskFactor(BaseModel):
     feature: str
     contribution: float
@@ -87,15 +74,13 @@ class PredictionResponse(BaseModel):
 
 
 class RecommendationRequest(BaseModel):
-    """Input to the LangGraph recommendation agent — mirrors RecommendationState
-    minus the two output fields populated by the graph nodes."""
+    """LangGraph recommendation request."""
     top_categories: list[dict] | None = None
     project_context: dict | None = None
     swot: dict | None = None
 
 
 def encode_input(project: ProjectFeatures) -> tuple[pd.DataFrame, float]:
-    """Converts a form-shaped request into the model's trained column structure."""
     budget_usd = project.budget_inr * INR_TO_USD_RATE
     budget_usd_log = np.log1p(budget_usd)
 
@@ -173,8 +158,7 @@ def predict(project: ProjectFeatures):
 
 @app.post("/langgraph/recommendations")
 def langgraph_recommendations(request: RecommendationRequest):
-    """Runs the 2-node LangGraph recommendation agent (analyze -> sequence) and
-    returns the phased roadmap. Called by Spring Boot's RecommendationService."""
+    """Run the LangGraph recommendation agent."""
     if (
         request.top_categories is None
         or request.project_context is None

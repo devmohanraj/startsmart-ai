@@ -27,10 +27,8 @@ public class RecommendationController {
     private final RecommendationService recommendationService;
 
     @PostMapping
-    @Operation(summary = "Generate risk-linked recommendations", description = "Requires that a risk assessment already exists for the project (generated via "
-            + "POST /api/projects/{projectId}/risk-analysis). Ranks the five risk categories by score, "
-            + "targets the top three, and calls Groq to produce specific, actionable, phased "
-            + "recommendations and mitigation strategies for each. Results are persisted and linked to the project.")
+    @Operation(summary = "Generate recommendations",
+               description = "Requires an existing risk assessment; targets the top three risk categories")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Recommendations generated and saved successfully", content = @Content(schema = @Schema(implementation = RecommendationResponseDTO.class))),
             @ApiResponse(responseCode = "400", description = "No risk assessment exists for the project — generate it first via /risk-analysis"),
@@ -43,8 +41,8 @@ public class RecommendationController {
     }
 
     @GetMapping
-    @Operation(summary = "Retrieve saved recommendations", description = "Returns the previously generated recommendations for a project, without calling Groq again. "
-            + "Use this endpoint to fetch cached results instead of re-generating.")
+    @Operation(summary = "Retrieve saved recommendations",
+               description = "Returns cached recommendations without calling Groq again")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Recommendations found and returned successfully", content = @Content(schema = @Schema(implementation = RecommendationResponseDTO.class))),
             @ApiResponse(responseCode = "404", description = "No recommendations found for the given project ID — generate one first via POST")

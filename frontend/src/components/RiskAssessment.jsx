@@ -22,9 +22,6 @@ const METRIC_LABELS = {
   scalability_potential: "Scalability Potential",
 };
 
-// ---------------------------------------------------------------
-// Presentation helpers
-// ---------------------------------------------------------------
 function severityOf(score) {
   if (score == null || Number.isNaN(Number(score))) return "none";
   if (Number(score) >= 67) return "high";
@@ -32,7 +29,6 @@ function severityOf(score) {
   return "low";
 }
 
-// Risk-level color theme: low = green, medium = orange, high = red
 const RISK_THEME = {
   low:    { ring: "#10b981", text: "text-emerald-400", badge: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20", bar: "bg-emerald-500", dot: "bg-emerald-500" },
   medium: { ring: "#f59e0b", text: "text-amber-400",   badge: "bg-amber-500/10 text-amber-400 border border-amber-500/20",   bar: "bg-amber-500",   dot: "bg-amber-500" },
@@ -44,7 +40,6 @@ function themeFor(level) {
   return RISK_THEME[String(level || "none").toLowerCase()] || RISK_THEME.none;
 }
 
-// Success-probability label: High / Moderate / Low
 function successMeta(sp) {
   if (sp == null) return null;
   if (sp >= 70) return { label: "High", bar: "bg-emerald-500", text: "text-emerald-400", chip: "bg-emerald-500/10 text-emerald-400" };
@@ -52,12 +47,7 @@ function successMeta(sp) {
   return { label: "Low", bar: "bg-red-500", text: "text-red-400", chip: "bg-red-500/10 text-red-400" };
 }
 
-// ---------------------------------------------------------------
-// Human-readable risk factor naming (presentation only).
-// Raw ML feature names + SHAP contributions are kept internally and
-// only used to derive user-friendly labels, explanations and impact
-// levels - they are never shown directly to end users.
-// ---------------------------------------------------------------
+// Raw ML feature names + SHAP contributions map to user-friendly labels/explanations — never shown raw to users.
 const KNOWN_FEATURE_LABELS = {
   funding_total_usd_log: "Funding Level Compared to Historical Startups",
   is_india: "India Market Context",
@@ -105,7 +95,6 @@ function humanizeFeatureName(feature) {
   return snakeCaseToWords(feature);
 }
 
-// Business-friendly explanations for known features.
 const EXPLANATIONS = {
   funding_total_usd_log: {
     increases_risk:
@@ -142,7 +131,6 @@ function Skeleton({ className = "" }) {
   return <div className={`bg-gray-700 rounded-lg animate-pulse ${className}`} />;
 }
 
-// Circular progress gauge
 function RingGauge({ value, size = 128, stroke = 11, color = "#6366f1", subLabel }) {
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -173,7 +161,6 @@ function RingGauge({ value, size = 128, stroke = 11, color = "#6366f1", subLabel
   );
 }
 
-// Horizontal progress bar
 function Bar({ value, colorClass = "bg-indigo-500", track = "bg-gray-700" }) {
   const pct = value != null ? Math.min(Math.max(Number(value), 0), 100) : 0;
   return (
@@ -201,9 +188,6 @@ function CardHeader({ title, subtitle, icon }) {
   );
 }
 
-// ---------------------------------------------------------------
-// Inline icon set
-// ---------------------------------------------------------------
 function RiskIcon() {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -378,9 +362,8 @@ function RiskAssessment({
   const [isGenerating, setIsGenerating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Ref-based guard so React StrictMode's double-invoke (or any re-render)
-  // cannot trigger a second concurrent network call. Refs (not state) keep the
-  // guard value stable across the double-invoke closure timing.
+  // Refs (not state) keep the guards stable across StrictMode's double-invoke
+  // closure timing, preventing a second concurrent network call.
   const fetchInProgressRef = useRef(false);
   const hasFetchedRef = useRef(false);
   const lastFetchKeyRef = useRef(null);
@@ -407,14 +390,10 @@ function RiskAssessment({
     [urlFor],
   );
 
-  // Load cached assessment, or generate a fresh one when none exists
   useEffect(() => {
     if (!projectId) return;
     if (riskAssessmentCache[projectId]) return;
 
-    // Reset the once-guard when the logical fetch key changes: the user either
-    // switched projects (projectId) or explicitly retried (reloadKey). Only a
-    // genuine key change should allow a fresh fetch.
     const fetchKey = `${projectId}:${reloadKey}`;
     if (lastFetchKeyRef.current !== fetchKey) {
       lastFetchKeyRef.current = fetchKey;
@@ -422,26 +401,15 @@ function RiskAssessment({
       hasFetchedRef.current = false;
     }
 
-    // Ensure only one real init (GET-then-POST) runs per project mount/retry.
-    // A second invocation (StrictMode double-invoke or re-render) must skip
-    // instead of firing another network call.
+    // ONE init (GET-then-POST) per mount/retry: blocks StrictMode double-invokes,
+    // never the internal GET-404-then-POST fallback (same logical cycle).
     if (fetchInProgressRef.current || hasFetchedRef.current) {
-      return; // already fetching or already fetched for this project — skip
+      return;
     }
-
-    // Mark the whole GET-then-POST-fallback sequence as in-flight BEFORE any
-    // network call fires. It stays true for the ENTIRE cycle (not just the GET),
-    // and is only released once the awaited sequence below fully resolves.
     fetchInProgressRef.current = true;
 
-    // A cycle is "current" only while it still belongs to the same composite
-    // fetch key (projectId + reloadKey) that the most recent effect invocation
-    // started a fetch for. Re-checking via the ref (instead of a per-closure
-    // `cancelled` boolean) lets the in-flight cycle survive StrictMode's
-    // teardown + re-invoke of the SAME composite key — which is what keeps the
-    // Retry button (reloadKey increment) as well as the POST fallback working —
-    // while still preventing a stale in-flight cycle from a genuinely
-    // switched-away project or retired key from clobbering fresh state.
+    // Ref-keyed by projectId+reloadKey: the in-flight cycle survives StrictMode
+    // teardown+re-invoke (Retry keeps working); retired keys can't clobber state.
     const myFetchKey = fetchKey;
     const isCurrentCycle = () => lastFetchKeyRef.current === myFetchKey;
 
@@ -458,9 +426,6 @@ function RiskAssessment({
             setIsGenerating(false);
             return;
           }
-          // No cached assessment — fresh ML + Groq generation (POST) is part
-          // of this SAME logical fetch cycle, so the popup stays visible while
-          // it runs. It is NOT gated by the once-guard refs here.
           if (isCurrentCycle()) setIsGenerating(true);
           try {
             result = await fetchAssessment(projectId, "POST");
@@ -482,10 +447,7 @@ function RiskAssessment({
         setIsGenerating(false);
         onAssessmentLoaded?.(projectId, result);
       } finally {
-        // The GET and its optional POST fallback together form ONE logical fetch
-        // cycle, so the refs are only released once the ENTIRE sequence resolves
-        // — never after the GET alone. hasFetchedRef is likewise only set once
-        // the full cycle (including the POST fallback, if it ran) completes.
+        // Refs released only after the ENTIRE GET(+POST fallback) cycle resolves.
         fetchInProgressRef.current = false;
         hasFetchedRef.current = true;
       }
@@ -494,7 +456,6 @@ function RiskAssessment({
     void runFetchCycle();
   }, [projectId, reloadKey, fetchAssessment, riskAssessmentCache, onAssessmentLoaded]);
 
-  // Poll while a server-side generation is being retried
   useEffect(() => {
     if (!projectId || !error || !isPolling) return;
     if (!/Request failed with status (500|502|503)/.test(error)) return;
@@ -517,9 +478,6 @@ function RiskAssessment({
     setReloadKey((k) => k + 1);
   };
 
-  // ---------------------------------------------------------------
-  // Derived data mapped from the API response (unchanged)
-  // ---------------------------------------------------------------
   const breakdown = data?.risk_breakdown || {};
   const categories = CATEGORY_ORDER.map((c) => ({ ...c, item: breakdown[c.key] || {} }));
   const overall = data?.overallRiskScore != null ? Number(data.overallRiskScore) : null;
@@ -538,9 +496,6 @@ function RiskAssessment({
   const budgetAdequacyRisk = budgetAdequacy.score != null ? Number(budgetAdequacy.score) : null;
   const assessmentReady = Boolean(projectId && data && !loading && !error);
 
-    // ---------------------------------------------------------------
-  // Not logged in — show auth gate
-  // ---------------------------------------------------------------
   if (!isLoggedIn) {
     return (
       <AuthGateMessage
@@ -551,9 +506,6 @@ function RiskAssessment({
     );
   }
 
-  // ---------------------------------------------------------------
-  // Empty state — no projects yet (matches Project Analysis design)
-  // ---------------------------------------------------------------
   if (!projectId && (!projects || projects.length === 0)) {
     return (
       <div className="max-w-345 mx-auto px-4 sm:px-6 py-8">
@@ -579,9 +531,6 @@ function RiskAssessment({
     );
   }
 
-  // ---------------------------------------------------------------
-  // Selector state — projects exist but none selected
-  // ---------------------------------------------------------------
   if (!projectId) {
     return (
       <div className="max-w-345 mx-auto px-6 py-8">
@@ -602,9 +551,6 @@ function RiskAssessment({
     );
   }
 
-  // ---------------------------------------------------------------
-  // Loading state (matches Project Analysis loading UI)
-  // ---------------------------------------------------------------
   if (loading && !data) {
     return (
       <>
@@ -630,7 +576,6 @@ function RiskAssessment({
           </div>
         </div>
 
-        {/* Fresh ML + Groq generation popup — same as Project Analysis */}
         {showPopup && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 flex flex-col items-center gap-4">
@@ -646,9 +591,6 @@ function RiskAssessment({
     );
   }
 
-  // ---------------------------------------------------------------
-  // Error state
-  // ---------------------------------------------------------------
   if (error && !data) {
     return (
       <div className="min-h-screen flex justify-center px-6 py-16">
@@ -681,7 +623,6 @@ function RiskAssessment({
   return (
     <div className="min-h-screen py-6 px-4 sm:px-6 lg:px-8">
       <div className="max-w-345 mx-auto">
-        {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">Risk Assessment</h1>
@@ -732,11 +673,8 @@ function RiskAssessment({
           </div>
         </div>
 
-        {/* Dashboard - ROW 1 / ROW 2 / ROW 3 / ROW 4 */}
         <div className="flex flex-col gap-5">
-          {/* ROW 1 - 4 equal-height cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.07fr_0.94fr_0.9fr_1.04fr] gap-5">
-            {/* Risk Score */}
             <Card className="overflow-hidden">
               <CardHeader title="Risk Score" icon={<RiskIcon />} />
               <div className="px-5 py-5 flex flex-col items-center justify-center text-center">
@@ -764,7 +702,6 @@ function RiskAssessment({
               </div>
             </Card>
 
-            {/* Project Feasibility */}
             <Card className="overflow-hidden">
               <CardHeader title="Project Feasibility" icon={<FeasibilityIcon />} />
               <div className="px-5 py-4 flex flex-col items-center text-center">
@@ -778,7 +715,6 @@ function RiskAssessment({
               </div>
             </Card>
 
-            {/* Assessment Metrics */}
             <Card className="overflow-hidden">
               <CardHeader title="Assessment Metrics" subtitle="AI-generated 0-100 health metrics" icon={<GaugeIcon />} />
               <div className="px-5 py-3">
@@ -804,7 +740,6 @@ function RiskAssessment({
               </div>
             </Card>
 
-            {/* Financial Details */}
             <Card className="overflow-hidden">
               <CardHeader title="Financial Details" subtitle="Budget adequacy vs historical comparison" icon={<GaugeIcon />} />
               <div className="px-5 py-4 flex flex-col gap-3">
@@ -838,7 +773,6 @@ function RiskAssessment({
             </Card>
           </div>
 
-          {/* ROW 2 - Risk by Category (full width, horizontal) */}
           <Card>
             <CardHeader title="Risk by Category" subtitle="Five-category breakdown" icon={<ListIcon />} />
             <div className="px-5 py-4 flex flex-col lg:flex-row gap-4">
@@ -866,9 +800,7 @@ function RiskAssessment({
             </div>
           </Card>
 
-          {/* ROW 3 - Key Risk Factors | SWOT Analysis */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* Key Risk Factors */}
             <Card className="lg:col-span-6">
               <CardHeader title="Key Risk Factors" subtitle="Primary drivers of the financial baseline" icon={<ListIcon />} />
               <div className="px-5 py-4 space-y-2">
@@ -911,7 +843,6 @@ function RiskAssessment({
               </div>
             </Card>
 
-            {/* SWOT Analysis */}
             <Card className="lg:col-span-6">
               <CardHeader title="SWOT Analysis" subtitle="AI-generated structured assessment" icon={<SwotIcon />} />
               <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -923,8 +854,7 @@ function RiskAssessment({
             </Card>
           </div>
 
-          {/* ROW 4 - Recommendations full width — mounted only once the risk assessment
-              has loaded successfully so its GET-then-POST never fires early */}
+          {/* Mounts only once assessmentReady so RecommendationsPanel's GET-then-POST never fires early */}
           {assessmentReady && (
             <RecommendationsPanel
               key={projectId}
@@ -937,7 +867,6 @@ function RiskAssessment({
         </div>
       </div>
 
-      {/* Scroll down hint */}
       <ScrollHint />
     </div>
   );

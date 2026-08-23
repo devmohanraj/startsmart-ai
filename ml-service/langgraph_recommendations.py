@@ -1,20 +1,7 @@
-"""LangGraph-based two-node recommendation agent for StartSmart AI.
-
-The Java backend (RecommendationService) ranks the five risk categories and
-ships the top three plus project context + SWOT here. Two nodes run inside a
-single compiled graph:
-
-  Node 1 "analyze"   — asks Groq for specific, actionable recommendations
-                       (riskCategory, recommendation, mitigation) covering all
-                       top categories in one JSON array.
-  Node 2 "sequence"  — asks Groq to assign each recommendation a phase
-                       (Immediate / Next 30 Days / Next Quarter) while reasoning
-                       about dependencies, producing the final roadmap.
-
-The graph is compiled once at module load (not per request) and re-invoked for
-every request. This service uses its own dedicated GROQ_API_KEY environment
-variable (a third key, independent of the Market Analysis and Risk Assessment
-Groq keys used by the Java backend).
+"""Two-node LangGraph recommendation agent (analyze -> sequence) called by the
+Java backend, which ranks risk categories and ships the top three plus project
+context + SWOT. Uses its own dedicated GROQ_API_KEY, independent of the
+backend's other Groq keys.
 """
 
 import json
@@ -42,9 +29,7 @@ class RecommendationState(TypedDict):
     final_roadmap: list  # Node 2 -> same fields plus phase
 
 
-# ---------------------------------------------------------------
-# Groq plumbing (one retry on failure, then a clear error naming the node)
-# ---------------------------------------------------------------
+# Groq plumbing: one retry on failure, then a node-named error from the wrappers.
 def _build_llm() -> ChatGroq:
     api_key = GROQ_API_KEY or os.environ.get("GROQ_API_KEY")
     if not api_key:
@@ -57,12 +42,8 @@ def _build_llm() -> ChatGroq:
 
 
 def _call_groq(prompt: str) -> str:
-    """Calls Groq; retries once on failure, then raises a RuntimeError whose
-    message includes the underlying cause. Node identification is added by the
-    node wrappers, and the raise happens outside the except handler so the
-    exception carries no implicit __context__ (LangGraph preserves the
-    top-level message exactly).
-    """
+    """Calls Groq; retries once, then raises RuntimeError with the underlying
+    cause. Node wrappers append the node name, raising outside the except."""
     llm = _build_llm()
     last_error = None
     for _ in range(2):
@@ -70,10 +51,7 @@ def _call_groq(prompt: str) -> str:
             response = llm.invoke([HumanMessage(content=prompt)])
             text = getattr(response, "content", None)
 
-            # Handle the case where content is a list of content blocks
-            # (e.g. [{'type': 'text', 'text': '...'}]) instead of a plain
-            # string. Kept defensively: ChatGroq normally returns a plain
-            # string, in which case this branch never triggers.
+            # Defensive: ChatGroq normally returns a plain string; handle list-of-text-blocks too.
             if isinstance(text, list):
                 extracted = []
                 for block in text:
@@ -91,9 +69,7 @@ def _call_groq(prompt: str) -> str:
     raise RuntimeError(f"Groq call failed after 1 retry: {last_error}")
 
 
-# ---------------------------------------------------------------
-# JSON parsing helpers (mirror of LlmService.stripMarkdown on the Java side)
-# ---------------------------------------------------------------
+# JSON parsing helpers — mirror of LlmService.stripMarkdown on the Java side.
 def _strip_markdown(text: str) -> str:
     text = (text or "").strip()
     had_fence = False
@@ -109,8 +85,7 @@ def _strip_markdown(text: str) -> str:
 
 
 def _parse_json_array(text: str) -> list:
-    # The raise happens after the except block so no implicit __context__ is
-    # captured (LangGraph preserves the top-level message only).
+    # Raise sits outside the except: no implicit __context__, so LangGraph keeps the message intact.
     error = None
     try:
         parsed = json.loads(text)
@@ -128,9 +103,7 @@ def _parse_json_array(text: str) -> list:
     return parsed
 
 
-# ---------------------------------------------------------------
-# Prompt text helpers (mirror RecommendationService/LlmService conventions)
-# ---------------------------------------------------------------
+# Prompt text helpers — mirror Java-side RecommendationService/LlmService conventions.
 def _capitalize(value: str) -> str:
     value = (value or "").strip()
     return value[:1].upper() + value[1:] if value else value
@@ -178,9 +151,6 @@ def _project_context_text(state: RecommendationState) -> str:
     )
 
 
-# ---------------------------------------------------------------
-# Node 1 — analyze_and_recommend
-# ---------------------------------------------------------------
 def _build_analyze_prompt(state: RecommendationState) -> str:
     category_count = len(state.get("top_categories") or [])
     return f"""You are a startup risk mitigation strategist. The risk assessment for the project below has already been completed. Your task is to produce SPECIFIC, ACTIONABLE recommendations that address the top risk categories listed below — all in a SINGLE response covering every listed category.
@@ -221,16 +191,11 @@ def analyze_and_recommend(state: RecommendationState) -> dict:
     except Exception as exc:  # noqa: BLE001 — must surface node-level error
         error = exc
     if error is not None:
-        # Raised outside the except handler: no implicit __context__, so
-        # LangGraph surfaces this exact node-identifying message.
+        # Raised outside the except: no implicit __context__, so LangGraph surfaces the node-named message.
         raise RuntimeError(f"Node 1 (analyze) failed: {error}")
     return {"raw_recommendations": recommendations}
 
 
-# ---------------------------------------------------------------
-# Node 2 — sequence_into_roadmap
-# ---------------------------------------------------------------
-# ---------------------------------------------------------------
 def _build_sequence_prompt(state: RecommendationState) -> str:
     raw = state.get("raw_recommendations") or []
     recommendations_json = json.dumps(raw, indent=2, ensure_ascii=False)
@@ -268,15 +233,11 @@ def sequence_into_roadmap(state: RecommendationState) -> dict:
     except Exception as exc:  # noqa: BLE001 — must surface node-level error
         error = exc
     if error is not None:
-        # Raised outside the except handler: no implicit __context__, so
-        # LangGraph surfaces this exact node-identifying message.
+        # Raised outside the except: no implicit __context__, so LangGraph surfaces the node-named message.
         raise RuntimeError(f"Node 2 (sequence) failed: {error}")
     return {"final_roadmap": roadmap}
 
 
-# ---------------------------------------------------------------
-# Graph construction — compiled once at module load
-# ---------------------------------------------------------------
 def _build_graph():
     workflow = StateGraph(RecommendationState)
     workflow.add_node("analyze", analyze_and_recommend)
@@ -291,7 +252,6 @@ compiled_graph = _build_graph()
 
 
 def run_recommendation_graph(top_categories, project_context, swot) -> list:
-    """Runs both graph nodes and returns the final phased roadmap (a JSON list)."""
     initial_state: RecommendationState = {
         "top_categories": top_categories,
         "project_context": project_context,

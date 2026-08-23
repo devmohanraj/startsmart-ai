@@ -31,7 +31,6 @@ public class DashboardService {
     private final SwotAnalysisRepository swotAnalysisRepository;
     private final ObjectMapper objectMapper;
 
-    // Five-category breakdown entries considered when finding each project's top risk driver
     private static final Map<String, String> RISK_CATEGORY_LABELS = Map.of(
             "financialRisk", "Financial",
             "marketRisk", "Market",
@@ -59,9 +58,6 @@ public class DashboardService {
         return buildAggregate(projects.size(), projectSummaries, predictionsByProjectId);
     }
 
-    // ---------------------------------------------------------------
-    // Per-project summary mapping
-    // ---------------------------------------------------------------
     private ProjectSummaryDTO toProjectSummary(Project project, Prediction prediction, SwotAnalysis swot) {
         return ProjectSummaryDTO.builder()
                 .projectId(project.getProjectId())
@@ -75,9 +71,7 @@ public class DashboardService {
                 .build();
     }
 
-    // ---------------------------------------------------------------
-    // Portfolio-level aggregation over assessed projects only
-    // ---------------------------------------------------------------
+    // Portfolio aggregation covers assessed projects only
     private DashboardSummaryDTO buildAggregate(
             int totalProjects, List<ProjectSummaryDTO> summaries, Map<Long, Prediction> predictionsByProjectId) {
         double averageRiskScore = round1(sumOf(summaries, ProjectSummaryDTO::getRiskScore) / summaries.size());
@@ -114,10 +108,7 @@ public class DashboardService {
                 .count();
     }
 
-    // ---------------------------------------------------------------
-    // Top risk driver — the category that most often scores highest
-    // within a project's five-category breakdown
-    // ---------------------------------------------------------------
+    // Top risk driver: the category that most often scores highest within a project's breakdown
     private record TopDriver(String category, Double percentage) {
     }
 
@@ -174,9 +165,6 @@ public class DashboardService {
         };
     }
 
-    // ---------------------------------------------------------------
-    // JSON / misc helpers
-    // ---------------------------------------------------------------
     private RiskBreakdownDTO fromJson(String json) {
         if (json == null || json.isBlank()) {
             return null;

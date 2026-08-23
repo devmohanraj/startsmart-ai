@@ -24,14 +24,10 @@ public class DashboardController {
     private final DashboardService dashboardService;
 
     @GetMapping("/summary")
-    @Operation(summary = "Get the portfolio dashboard summary for a user",
-               description = "Aggregates already-computed risk assessment data across ALL of the user's projects — no ML or LLM "
-                           + "calls are made. Returns total and assessed project counts, average overall risk score, average success "
-                           + "probability, High/Medium/Low risk distribution, the most common top risk category across projects, and a "
-                           + "per-project list (name, industry, risk score, success probability, feasibility score, created date) sorted "
-                           + "most recent first. Projects without a completed risk assessment are excluded from all averages.")
+    @Operation(summary = "Get portfolio dashboard summary",
+               description = "Aggregates already-computed assessments only; no ML or LLM calls")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Dashboard summary retrieved successfully — returns zeroed aggregates and an empty project list when the user has no assessed projects",
+        @ApiResponse(responseCode = "200", description = "Summary retrieved successfully; zeroed aggregates when no projects are assessed",
             content = @Content(schema = @Schema(implementation = DashboardSummaryDTO.class)))
     })
     public ResponseEntity<DashboardSummaryDTO> getDashboardSummary(@RequestParam Long userId) {

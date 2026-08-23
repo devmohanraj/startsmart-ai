@@ -26,11 +26,8 @@ public class RiskAssessmentController {
     private final RiskAssessmentService riskAssessmentService;
 
     @PostMapping
-    @Operation(summary = "Generate combined risk assessment",
-               description = "Calls the FastAPI ML service for the data-driven Financial Risk baseline (success probability, risk score, "
-                           + "top risk factors), then calls Groq to reason over Market, Technical, Operational, and Execution risk — each "
-                           + "with a score and a project-specific reason. The Overall Risk Score is the weighted combination of all five "
-                           + "categories (0.25/0.20/0.20/0.20/0.15). Results are persisted and linked to the project.")
+    @Operation(summary = "Generate risk assessment",
+               description = "ML financial baseline plus Groq reasoning over the other four categories; persists the result")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Risk assessment generated and saved successfully",
             content = @Content(schema = @Schema(implementation = RiskAssessmentResponseDTO.class))),
@@ -44,8 +41,7 @@ public class RiskAssessmentController {
 
     @GetMapping
     @Operation(summary = "Retrieve saved risk assessment",
-               description = "Returns the previously generated combined risk assessment for a project, without re-calling "
-                           + "the ML service or Groq. Use this endpoint to fetch cached results instead of re-generating.")
+               description = "Returns the cached assessment without re-calling ML or Groq")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Risk assessment found and returned successfully",
             content = @Content(schema = @Schema(implementation = RiskAssessmentResponseDTO.class))),

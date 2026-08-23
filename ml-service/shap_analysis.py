@@ -19,7 +19,6 @@ def main():
     explainer = shap.TreeExplainer(xgb_model)
     shap_values = explainer.shap_values(X_test)
 
-    # Global feature importance
     mean_abs_shap = pd.DataFrame({
         "feature": X_test.columns,
         "mean_abs_shap": abs(shap_values).mean(axis=0),
@@ -30,7 +29,7 @@ def main():
     print("=" * 60)
     print(mean_abs_shap.to_string(index=False))
 
-    # Example: explain one prediction (mirrors what /predict does live)
+    # Single-prediction example mirroring what /predict does live.
     sample_idx = 0
     sample_shap = shap_values[sample_idx]
     sample_features = X_test.iloc[sample_idx]

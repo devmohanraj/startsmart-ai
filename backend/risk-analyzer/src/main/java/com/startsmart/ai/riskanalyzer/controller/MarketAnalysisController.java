@@ -27,9 +27,7 @@ public class MarketAnalysisController {
 
     @PostMapping
     @Operation(summary = "Generate market & competitor analysis",
-               description = "Uses Groq (LLM) to analyze the project's industry, business model, and target market, "
-                           + "returning market size (TAM/SAM/SOM), growth rate, market trends, and a competitor landscape. "
-                           + "Results are persisted and linked to the project.")
+               description = "Uses Groq to return TAM/SAM/SOM, growth, trends, and competitors; persists the result")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Market analysis generated and saved successfully",
             content = @Content(schema = @Schema(implementation = MarketAnalysisResponseDTO.class))),
@@ -43,8 +41,7 @@ public class MarketAnalysisController {
 
     @GetMapping
     @Operation(summary = "Retrieve saved market & competitor analysis",
-               description = "Returns previously generated market and competitor analysis for a project, without calling Groq again. "
-                           + "Use this endpoint to fetch cached results instead of re-generating.")
+               description = "Returns cached analysis without calling Groq again")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Market analysis found and returned successfully",
             content = @Content(schema = @Schema(implementation = MarketAnalysisResponseDTO.class))),

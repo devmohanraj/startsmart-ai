@@ -47,7 +47,6 @@ public class RiskAssessmentService {
     private static final double WEIGHT_EXECUTION = 0.12;
     private static final double WEIGHT_SCALABILITY = 0.10;
 
-    // Data source labels used in the risk breakdown (which engine produced each score)
     private static final String SOURCE_ML_MODEL = "ML_MODEL";
     private static final String SOURCE_LLM = "LLM";
     private static final String SOURCE_BLENDED = "BLENDED";
@@ -56,24 +55,18 @@ public class RiskAssessmentService {
     public RiskAssessmentResponseDTO generateRiskAssessment(Long projectId) {
         Project project = getProjectOrThrow(projectId);
 
-        // Step 1: Call the FastAPI ML service -> Financial Risk baseline (real historical data)
         MlPredictionResponseDTO mlPrediction = callMlService(project);
 
-        // Step 2: Call Groq to reason over Market / Technical / Operational / Execution risk,
-        // anchored on the ML financial baseline so the five scores stay internally consistent
         LlmRiskResponseDTO llmData = callGroqRiskAnalysis(project, mlPrediction);
 
-        // Step 3: Assemble the five-category breakdown and combine into the weighted Overall Risk Score
         RiskAssessmentResponseDTO.RiskBreakdownDTO riskBreakdown = buildRiskBreakdown(project, mlPrediction, llmData);
         double overallRiskScore = computeOverallRiskScore(riskBreakdown);
         String riskLevel = RiskScoreAggregator.deriveRiskLevel(overallRiskScore);
         // Combined success probability now reflects ALL FIVE risk categories, not just the ML financial baseline
         double combinedSuccessProbability = RiskScoreAggregator.combinedSuccessProbability(overallRiskScore);
 
-        // Step 4: Compute deterministic feasibility score from the 7 assessment metrics
         Double feasibilityScore = computeFeasibilityScore(llmData.getAssessmentMetrics());
 
-        // Step 5: Persist combined result (replace any previous assessment for this project)
         predictionRepository.deleteByProjectProjectId(projectId);
         swotAnalysisRepository.deleteByProjectProjectId(projectId);
 
@@ -96,9 +89,6 @@ public class RiskAssessmentService {
                 null, null, null, null, null);
     }
 
-    // ---------------------------------------------------------------
-    // ML service call
-    // ---------------------------------------------------------------
     private MlPredictionResponseDTO callMlService(Project project) {
         Map<String, Object> requestBody = Map.of(
                 "budget_inr", project.getBudget() != null ? project.getBudget() : BigDecimal.ZERO,
@@ -120,10 +110,6 @@ public class RiskAssessmentService {
         return response;
     }
 
-    // ---------------------------------------------------------------
-    // Groq call - four AI-reasoned risk categories anchored on the
-    // ML financial baseline
-    // ---------------------------------------------------------------
     private LlmRiskResponseDTO callGroqRiskAnalysis(Project project, MlPredictionResponseDTO mlPrediction) {
         String prompt = buildRiskPrompt(project, mlPrediction);
         String rawJson = llmService.callGroq(prompt);
@@ -263,9 +249,6 @@ public class RiskAssessmentService {
                         project.getDescription() != null ? project.getDescription() : "Not specified");
     }
 
-    // ---------------------------------------------------------------
-    // Deterministic feasibility score \u2014 weighted avg of the 7 metrics
-    // ---------------------------------------------------------------
     private Double computeFeasibilityScore(Map<String, Double> metrics) {
         if (metrics == null || metrics.isEmpty()) {
             return 0.0;
@@ -285,9 +268,6 @@ public class RiskAssessmentService {
         return metrics.getOrDefault(key, 0.0);
     }
 
-    // ---------------------------------------------------------------
-    // Persistence helpers
-    // ---------------------------------------------------------------
     private Prediction buildPrediction(Project project, MlPredictionResponseDTO ml,
             RiskAssessmentResponseDTO.RiskBreakdownDTO riskBreakdown, double overallRiskScore,
             double combinedSuccessProbability, String riskLevel) {
@@ -318,9 +298,6 @@ public class RiskAssessmentService {
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + projectId));
     }
 
-    // ---------------------------------------------------------------
-    // DTO mapping
-    // ---------------------------------------------------------------
     private RiskAssessmentResponseDTO toResponseDTO(
             Prediction prediction,
             SwotAnalysis swot,
@@ -333,7 +310,6 @@ public class RiskAssessmentService {
             Double freshCombinedSuccessProbability,
             Double freshFinancialSuccessProbability) {
 
-        // When reading from cache (ml/llmData null), deserialize from the JSONB columns
         List<MlPredictionResponseDTO.RiskFactor> topRiskFactors = ml != null
                 ? ml.getTopRiskFactors()
                 : fromJson(prediction.getTopRiskFactorsJson(), new TypeReference<>() {});
@@ -369,9 +345,8 @@ public class RiskAssessmentService {
             fillLegacyFallbacks(riskBreakdown, prediction);
             overallRiskScore = prediction.getOverallRiskScore();
             riskLevel = prediction.getRiskLevel();
-            // successProbability is persisted as the combined value on new rows. On legacy rows the
-            // successProbability column still held the raw ML financial value, so the combined value
-            // is recomputed from the persisted overall risk score, while the raw ML value is kept.
+            // Legacy rows stored the raw ML financial value in successProbability; recompute
+            // the combined value from overallRiskScore while preserving the raw ML value.
             successProbability = prediction.getFinancialSuccessProbability() != null
                     ? prediction.getSuccessProbability()
                     : RiskScoreAggregator.combinedSuccessProbability(overallRiskScore);
@@ -412,9 +387,6 @@ public class RiskAssessmentService {
                 .build();
     }
 
-    // ---------------------------------------------------------------
-    // Five-category risk breakdown helpers
-    // ---------------------------------------------------------------
     private RiskAssessmentResponseDTO.RiskBreakdownDTO buildRiskBreakdown(
             Project project, MlPredictionResponseDTO ml, LlmRiskResponseDTO llmData) {
         double blendedFinancialRisk = computeBlendedFinancialRisk(ml, llmData);
@@ -430,10 +402,8 @@ public class RiskAssessmentService {
     }
 
     /**
-     * Blends the LLM's (Groq) scope-based budget-adequacy judgment with the ML
-     * historical baseline into the Financial Risk score: 60% adequacy / 40% ML.
-     * If the LLM did not return a budget-adequacy score, the ML baseline is used
-     * unchanged.
+     * Blends Groq scope-based budget adequacy with the ML baseline (60%/40%);
+     * falls back to the raw ML score when no adequacy was returned.
      */
     private double computeBlendedFinancialRisk(MlPredictionResponseDTO ml, LlmRiskResponseDTO llmData) {
         double mlScore = safeDouble(ml.getOverallRiskScore());
@@ -454,13 +424,6 @@ public class RiskAssessmentService {
                 .build();
     }
 
-    /**
-     * Financial risk is a BLEND of two independent signals: how well the submitted
-     * budget covers THIS project's specific scope (LLM judgment from the risk
-     * analysis, weighted 60%) and how it compares to previously funded companies in
-     * the ML training data (40%). The raw ML-only score is kept separately as
-     * {@code mlOnlyFinancialRisk}.
-     */
     private RiskAssessmentResponseDTO.RiskCategoryDTO buildFinancialRiskCategory(
             Project project, MlPredictionResponseDTO ml, LlmRiskResponseDTO llmData, double blendedFinancialRisk) {
         LlmRiskResponseDTO.BudgetAdequacy adequacy = llmData.getBudgetAdequacy();
@@ -508,10 +471,6 @@ public class RiskAssessmentService {
                 .build();
     }
 
-    /**
-     * Weighted Overall Risk Score from the five categories using the shared
-     * {@link RiskScoreAggregator} weights (0.25/0.20/0.20/0.20/0.15).
-     */
     private double computeOverallRiskScore(RiskAssessmentResponseDTO.RiskBreakdownDTO breakdown) {
         return RiskScoreAggregator.computeOverallRiskScore(
                 scoreOf(breakdown.getFinancialRisk()),
@@ -525,11 +484,7 @@ public class RiskAssessmentService {
         return category != null && category.getScore() != null ? category.getScore() : 0.0;
     }
 
-    /**
-     * Formats an amount using Indian numbering (lakhs/crores), e.g.
-     * 1800000 -> "\u20B918,00,000". Budgets are whole rupees so no decimals
-     * are emitted.
-     */
+    /** Formats amounts in Indian lakh/crore grouping (e.g. 1800000 -> "\u20B918,00,000"); budgets are whole rupees, no decimals. */
     static String formatInr(BigDecimal value) {
         if (value == null) {
             return null;
@@ -556,10 +511,7 @@ public class RiskAssessmentService {
         return (negative ? "-\u20B9" : "\u20B9") + grouped;
     }
 
-    /**
-     * Best-effort fill for a cached (older-generation) breakdown whose persisted
-     * JSON predates the five-category upgrade.
-     */
+    /** Best-effort fill for cached breakdowns persisted before the five-category upgrade. */
     private void fillLegacyFallbacks(RiskAssessmentResponseDTO.RiskBreakdownDTO breakdown, Prediction prediction) {
         if (breakdown.getFinancialRisk() == null && prediction.getOverallRiskScore() != null) {
             breakdown.setFinancialRisk(RiskAssessmentResponseDTO.RiskCategoryDTO.builder()
@@ -602,9 +554,6 @@ public class RiskAssessmentService {
         }
     }
 
-    // ---------------------------------------------------------------
-    // JSON / misc helpers
-    // ---------------------------------------------------------------
     private String toJson(Object obj) {
         try {
             return objectMapper.writeValueAsString(obj);

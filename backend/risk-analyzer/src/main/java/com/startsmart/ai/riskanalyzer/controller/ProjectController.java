@@ -41,9 +41,8 @@ public class ProjectController {
             @RequestParam Long userId
     ) {
         ProjectResponseDTO response = projectService.createProject(dto, userId);
-        // Risk assessment and market analysis are intentionally generated on-demand
-        // (not in the background): the frontend uses a GET-then-POST fallback that
-        // triggers generation only when the user actually opens a tab.
+        // Analysis generation stays on-demand (not background): the frontend uses a
+        // GET-then-POST fallback that triggers generation only when a tab is opened.
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

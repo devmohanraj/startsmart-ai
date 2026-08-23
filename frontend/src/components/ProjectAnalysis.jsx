@@ -18,23 +18,18 @@ function ProjectAnalysis({
   const [selected, setSelected] = useState(project || null);
   const [prevProjectId, setPrevProjectId] = useState(project?.projectId ?? null);
 
-  // Sync the local selection when the parent supplies a different project.
-  // This is React's documented "adjust state when a prop changes" pattern
-  // (render-phase update, not an effect).
+  // React-documented "adjust state when a prop changes" pattern (render-phase
+  // update, not an effect): syncs local selection with the parent's project.
   if ((project?.projectId ?? null) !== prevProjectId) {
     setPrevProjectId(project?.projectId ?? null);
     setSelected(project || null);
   }
 
-  // Handler that lifts the selection up to the App level so the chosen
-  // project persists when the user navigates between tabs.
   const handleSelectProject = (project) => {
     setSelected(project);
     if (onSelectProject) onSelectProject(project);
   };
 
-  // Not logged in — show an auth gate so the user knows they need to log in
-  // and create a project to access project analysis.
   if (!isLoggedIn) {
     return (
       <AuthGateMessage

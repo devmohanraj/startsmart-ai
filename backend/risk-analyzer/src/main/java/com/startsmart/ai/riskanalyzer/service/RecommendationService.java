@@ -94,8 +94,6 @@ public class RecommendationService {
                     .build());
         }
 
-        // Replace any previous recommendations for this project (same pattern as
-        // MarketAnalysisService / RiskAssessmentService use for their tables).
         recommendationRepository.deleteByProjectProjectId(projectId);
         List<Recommendation> saved = recommendationRepository.saveAll(recommendations);
         return saved.stream().map(RecommendationResponseDTO::from).toList();

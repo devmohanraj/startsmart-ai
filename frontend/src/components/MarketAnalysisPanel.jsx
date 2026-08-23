@@ -16,7 +16,6 @@ function formatCurrency(value) {
   return "₹" + num.toLocaleString("en-IN");
 }
 
-
 function MarketTrendsChart({ data, growthRate }) {
   if (!data || data.length === 0) return null;
 
@@ -176,9 +175,8 @@ function MarketAnalysisPanel({
   const [isPolling, setIsPolling] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Ref-based guard so React StrictMode's double-invoke (or any re-render)
-  // cannot trigger a second concurrent network call. Refs (not state) keep the
-  // guard value stable across the double-invoke closure timing.
+  // Refs (not state) keep the guards stable across StrictMode's double-invoke
+  // closure timing, preventing a second concurrent network call.
   const fetchInProgressRef = useRef(false);
   const hasFetchedRef = useRef(false);
   const lastProjectIdRef = useRef(null);
@@ -189,34 +187,20 @@ function MarketAnalysisPanel({
       return;
     }
 
-    // Reset the once-guard when switching to a different project, so each
-    // project is eligible to fetch once. This only resets on a genuine project
-    // change, not on a StrictMode double-invoke (same projectId).
     if (lastProjectIdRef.current !== projectId) {
       lastProjectIdRef.current = projectId;
       fetchInProgressRef.current = false;
       hasFetchedRef.current = false;
     }
 
-    // Ensure only ONE concurrent/duplicate INITIAL fetch cycle runs per project
-    // mount. This guard exists solely to stop StrictMode's double-invoke (or a
-    // re-render) from firing a second GET. It must NOT block the internal
-    // GET-404-then-POST fallback, which is part of the SAME logical fetch cycle
-    // and is allowed to run to completion below inside the awaited sequence.
+    // ONE initial fetch cycle per project mount: blocks StrictMode
+    // double-invokes, never the internal GET-404-then-POST (same logical cycle).
     if (fetchInProgressRef.current || hasFetchedRef.current) {
-      return; // already fetching or already fetched for this project — skip
+      return;
     }
-
-    // Mark the whole GET-then-POST sequence as in-flight BEFORE any network
-    // call fires. It stays true for the ENTIRE cycle (not just the GET).
     fetchInProgressRef.current = true;
 
-    // A cycle is "current" only while it still belongs to the project the most
-    // recent effect invocation started a fetch for. Re-checking this via the ref
-    // (instead of a per-closure `cancelled` boolean) lets the in-flight cycle
-    // survive StrictMode's teardown + re-invoke of the SAME project, while still
-    // preventing a stale in-flight cycle from a genuinely-switched-away project
-    // from clobbering fresh state.
+    // Ref-keyed: in-flight cycle survives StrictMode teardown+re-invoke; stale ones can't clobber state.
     const myProjectId = projectId;
     const isCurrentCycle = () => lastProjectIdRef.current === myProjectId;
 
@@ -224,7 +208,6 @@ function MarketAnalysisPanel({
       try {
         const url = `${import.meta.env.VITE_API_URL}/api/projects/${myProjectId}/market-analysis`;
 
-        // 1) Try to read already-generated analysis (GET).
         const res = await fetch(url, { method: "GET" });
         if (res.ok) {
           const json = await res.json();
@@ -237,9 +220,6 @@ function MarketAnalysisPanel({
           return;
         }
         if (res.status === 404) {
-          // 2) No cached analysis — generate a fresh one via POST. This is the
-          //    intended internal fallback within this single fetch cycle, so it
-          //    is NOT a duplicate request and is never gated by the refs here.
           const postRes = await fetch(url, { method: "POST" });
           if (!postRes.ok) {
             const body = await postRes.json().catch(() => null);
@@ -263,10 +243,7 @@ function MarketAnalysisPanel({
         setLoading(false);
         if (onAnalysisComplete) onAnalysisComplete();
       } finally {
-        // The GET and its optional POST fallback together form ONE logical fetch
-        // cycle, so the refs are only released once the ENTIRE sequence resolves
-        // — never after the GET alone. hasFetchedRef is similarly only set once
-        // the full cycle (including the POST fallback, if it ran) completes.
+        // Refs released only after the ENTIRE GET(+POST fallback) cycle resolves.
         fetchInProgressRef.current = false;
         hasFetchedRef.current = true;
       }
@@ -352,7 +329,6 @@ function MarketAnalysisPanel({
   }
   const growthNum = parseFloat(data?.growthRate) || 0;
 
-  // Sort competitors by market share (highest first)
   const sortedCompetitors = data?.competitors
     ? [...data.competitors].sort((a, b) => {
         const shareA = parseFloat(a.marketShare) || 0;
@@ -448,7 +424,6 @@ function MarketAnalysisPanel({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 md:gap-6 items-stretch lg:h-[calc(100vh-6rem)]">
-      {/* Left column — Market Analysis */}
       <div className="md:col-span-1 lg:col-span-6 flex flex-col gap-3 md:gap-4 h-full">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 shrink-0">
           <h3 className="text-sm font-semibold text-white">Market Analysis</h3>
@@ -471,7 +446,6 @@ function MarketAnalysisPanel({
           </div>
         </div>
 
-        {/* TAM/SAM/SOM cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3 pb-2 md:pb-3 shrink-0">
           <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3">
             <p className="text-lg font-bold text-white">
@@ -502,7 +476,6 @@ function MarketAnalysisPanel({
           </div>
         </div>
 
-        {/* Market trends chart — grows to fill remaining space */}
         {trends.length > 0 && (
           <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 md:p-4 flex flex-col gap-2 md:gap-3 min-h-0 h-72 md:h-84.5">
             <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">
@@ -513,7 +486,6 @@ function MarketAnalysisPanel({
         )}
       </div>
 
-      {/* Center column — Competitor Landscape */}
       <div className="md:col-span-1 lg:col-span-3 flex flex-col gap-3 md:gap-4 h-full">
         <div className="flex items-center justify-between pb-2 shrink-0">
           <h3 className="text-sm font-semibold text-white">
@@ -596,7 +568,6 @@ function MarketAnalysisPanel({
         )}
       </div>
 
-      {/* Right column — Project Summary */}
       {project && (
         <div className="md:col-span-2 lg:col-span-3 h-full">
           <ProjectSummary project={project} onReset={onReset} />

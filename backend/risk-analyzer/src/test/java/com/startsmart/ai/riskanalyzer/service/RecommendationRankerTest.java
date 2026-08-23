@@ -36,7 +36,6 @@ class RecommendationRankerTest {
     void selectsTopThreeByScoreDescending() {
         var top = RecommendationRanker.selectTopThree(breakdownWith(80.0, 40.0, 60.0, 90.0, 30.0));
         assertEquals(List.of("operational", "financial", "technical"), categoriesOf(top));
-        // Scores are preserved on the returned ranked entries
         assertEquals(90.0, top.get(0).score(), 0.0001);
         assertEquals(80.0, top.get(1).score(), 0.0001);
         assertEquals(60.0, top.get(2).score(), 0.0001);
@@ -44,14 +43,12 @@ class RecommendationRankerTest {
 
     @Test
     void tieBreaksByCanonicalCategoryOrder() {
-        // Every category has the same score -> canonical order wins: financial, market, technical
         var top = RecommendationRanker.selectTopThree(breakdownWith(50.0, 50.0, 50.0, 50.0, 50.0));
         assertEquals(List.of("financial", "market", "technical"), categoriesOf(top));
     }
 
     @Test
     void tieAtSecondRankKeepsCanonicalOrderWithinTie() {
-        // financial is highest; market, technical, operational tie at 60
         var top = RecommendationRanker.selectTopThree(breakdownWith(90.0, 60.0, 60.0, 60.0, 20.0));
         assertEquals(List.of("financial", "market", "technical"), categoriesOf(top));
     }
@@ -75,7 +72,6 @@ class RecommendationRankerTest {
                 .executionRisk(cat(20.0))
                 .build();
         var top = RecommendationRanker.selectTopThree(breakdown);
-        // financial (null -> 0) sorts below the three real scores, so it drops out of the top 3
         assertEquals(List.of("market", "technical", "execution"), categoriesOf(top));
     }
 

@@ -6,7 +6,6 @@ function AuthModal({ isOpen, onClose, initialMode = "login", onAuthSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ESC key to close
   useEffect(() => {
     if (!isOpen) return;
     const handleEsc = (e) => {
@@ -81,15 +80,12 @@ function AuthModal({ isOpen, onClose, initialMode = "login", onAuthSuccess }) {
       className="fixed inset-0 z-60 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
 
-      {/* Modal */}
       <div
         className="relative bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-5 sm:p-8 max-h-[90dvh] overflow-y-auto animate-[fadeIn_0.2s_ease]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close button */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors cursor-pointer"
@@ -100,7 +96,6 @@ function AuthModal({ isOpen, onClose, initialMode = "login", onAuthSuccess }) {
           </svg>
         </button>
 
-        {/* Header */}
         <div className="mb-6">
           <div className="w-12 h-12 rounded-xl bg-indigo-500 flex items-center justify-center shadow-sm mb-4">
             <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -117,14 +112,12 @@ function AuthModal({ isOpen, onClose, initialMode = "login", onAuthSuccess }) {
           </p>
         </div>
 
-        {/* Error message */}
         {error && (
           <div className="mb-4 p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
             <p className="text-sm text-red-400">{error}</p>
           </div>
         )}
 
-        {/* Tabs */}
         <div className="flex gap-1 p-1 bg-gray-800 border border-gray-700/50 rounded-lg mb-6">
           <button
             onClick={() => handleModeChange("login")}
@@ -148,7 +141,6 @@ function AuthModal({ isOpen, onClose, initialMode = "login", onAuthSuccess }) {
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           {mode === "signup" && (
             <div>
@@ -223,7 +215,6 @@ function AuthModal({ isOpen, onClose, initialMode = "login", onAuthSuccess }) {
           </div>
         </form>
 
-        {/* Switch mode link */}
         <p className="text-center text-sm text-gray-400 mt-6">
           {mode === "login" ? "Don't have an account? " : "Already have an account? "}
           <button

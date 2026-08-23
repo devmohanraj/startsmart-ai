@@ -30,7 +30,6 @@ const HIGHLIGHTS = [
 function AboutPanel() {
   return (
     <div className="space-y-8">
-      {/* Hero section */}
       <div className="space-y-4">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-400/20 text-indigo-400 text-sm font-medium">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
@@ -47,7 +46,6 @@ function AboutPanel() {
         </p>
       </div>
 
-      {/* How it works */}
       <div className="space-y-5">
         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">
           How it works
@@ -72,7 +70,6 @@ function AboutPanel() {
         </div>
       </div>
 
-      {/* Highlights */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {HIGHLIGHTS.map((item) => (
           <div

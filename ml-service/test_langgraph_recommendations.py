@@ -1,9 +1,3 @@
-"""Basic tests for the LangGraph recommendation agent.
-
-The Groq calls are mocked so the tests verify the graph wiring and state flow
-(Node 1 -> Node 2) without hitting the real API.
-"""
-
 import json
 
 import pytest
@@ -32,7 +26,6 @@ def _sample_inputs():
 
 
 def test_graph_flows_node1_to_node2_and_produces_final_roadmap(monkeypatch):
-    """Both nodes execute in order and the final output carries phase fields."""
     node1_payload = [
         {"riskCategory": "financial", "recommendation": "Cut burn rate", "mitigation": "Trim non-essential spend"},
         {"riskCategory": "market", "recommendation": "Hire a sales lead", "mitigation": "Post a funded headcount req"},
@@ -72,8 +65,6 @@ def test_strip_markdown_removes_code_fences():
 
 
 def test_node1_failure_is_debuggable(monkeypatch):
-    """A failed Node 1 raises an error that names the failing node."""
-
     def fake_call_groq(prompt):
         raise RuntimeError("network down")
 
@@ -85,8 +76,6 @@ def test_node1_failure_is_debuggable(monkeypatch):
 
 
 def test_node2_failure_is_debuggable(monkeypatch):
-    """A failed Node 2 raises an error that names the failing node."""
-
     def fake_call_groq(prompt):
         if '"phase"' not in prompt:
             return json.dumps([{"riskCategory": "financial", "recommendation": "r", "mitigation": "m"}])

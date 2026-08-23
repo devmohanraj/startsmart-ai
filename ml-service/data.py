@@ -4,10 +4,6 @@ from sklearn.model_selection import train_test_split
 
 
 def load_and_prepare_data(csv_path: str = "data.csv", test_size: float = 0.2, random_state: int = 42):
-
-    # ---------------------------------------------------------
-    # STEP 1: Load raw data
-    # ---------------------------------------------------------
     df = pd.read_csv(csv_path)
 
     required_cols = {"status", "funding_total_usd", "category_list", "country_code"}
@@ -15,19 +11,10 @@ def load_and_prepare_data(csv_path: str = "data.csv", test_size: float = 0.2, ra
     if missing:
         raise ValueError(f"Dataset is missing required columns: {missing}")
 
-    # ---------------------------------------------------------
-    # STEP 2: Define target variable
-    # Keep only resolved outcomes: acquired / ipo / closed
-    # ('operating' is excluded — not a resolved outcome)
-    # ---------------------------------------------------------
+    # Target = resolved outcomes only (acquired/ipo/closed); 'operating' is not a resolved outcome.
     df_resolved = df[df["status"].isin(["acquired", "closed", "ipo"])].copy()
     df_resolved["success"] = df_resolved["status"].apply(lambda s: 0 if s == "closed" else 1)
 
-    # ---------------------------------------------------------
-    # STEP 3: Feature engineering (form-aligned only)
-    # ---------------------------------------------------------
-
-    # 3a. funding_total_usd: '-' placeholder -> NaN -> median impute
     df_resolved["funding_total_usd"] = pd.to_numeric(
         df_resolved["funding_total_usd"].replace("-", np.nan), errors="coerce"
     )
@@ -35,14 +22,10 @@ def load_and_prepare_data(csv_path: str = "data.csv", test_size: float = 0.2, ra
         df_resolved["funding_total_usd"].median()
     )
 
-    # 3b. Log-transform budget — compresses the heavy right-skew of raw
-    # dollar amounts (most companies raised far less than the handful of
-    # huge outliers), so the model treats budget differences proportionally
-    # instead of being dominated by extreme absolute gaps. log1p handles
-    # zero values safely (log1p(0) = 0, no -inf error).
+    # log1p compresses the heavy right-skew of dollar amounts (a few huge outliers dominate raw
+    # values) so budget differences act proportionally; log1p(0)=0 handles zero funding safely.
     df_resolved["funding_total_usd_log"] = np.log1p(df_resolved["funding_total_usd"])
 
-    # 3c. Simplify category_list -> primary_category (top 20 + "Other")
     df_resolved["primary_category"] = (
         df_resolved["category_list"].fillna("Unknown").apply(lambda x: x.split("|")[0])
     )
@@ -51,17 +34,12 @@ def load_and_prepare_data(csv_path: str = "data.csv", test_size: float = 0.2, ra
         lambda x: x if x in top_categories else "Other"
     )
 
-    # 3d. is_india flag
     df_resolved["country_code"] = df_resolved["country_code"].fillna("Unknown")
     df_resolved["is_india"] = (df_resolved["country_code"] == "IND").astype(int)
 
-    # 3e. sample_weight — upweight India rows 3x
+    # Upweight India rows 3x via sample_weight.
     df_resolved["sample_weight"] = df_resolved["is_india"].apply(lambda x: 3 if x == 1 else 1)
 
-    # ---------------------------------------------------------
-    # STEP 4: Train/test split
-    # ---------------------------------------------------------
-    # NOTE: uses funding_total_usd_log, NOT the raw funding_total_usd
     feature_cols = ["funding_total_usd_log", "primary_category", "is_india"]
 
     X = df_resolved[feature_cols]

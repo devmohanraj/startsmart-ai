@@ -92,8 +92,7 @@ function App() {
       if (prev.some((p) => p.projectId === project.projectId)) return prev;
       return [project, ...prev];
     });
-    // The dashboard summary is stale the moment a project is created —
-    // drop the cached snapshot so the next visit refetches.
+    // A new project makes the cached dashboard summary stale — drop it.
     invalidateDashboardCache(user?.userId);
     fetchUserProjects(user?.userId);
   };
@@ -192,9 +191,7 @@ function App() {
     }
   };
 
-  // Restore the persisted session once on mount: if a user was restored from
-  // localStorage, re-fetch their project list so the app is fully usable
-  // after a page refresh.
+  // Restore persisted session once on mount: re-fetch projects after refresh.
   useEffect(() => {
     if (user?.userId) {
       fetchUserProjects(user.userId);
@@ -208,8 +205,7 @@ function App() {
   };
 
   const handleSelectProjectForAssessment = (project) => {
-    // Resolve the full project object from existing state so Risk Assessment
-    // receives every field it expects; fall back to the dashboard summary row.
+    // Resolve the full project object so Risk Assessment receives every field.
     const full = userProjects.find((p) => p.projectId === project.projectId)
       || { ...project, projectType: project.industry };
     setSubmittedProject(full);
@@ -228,7 +224,7 @@ function App() {
         throw new Error(errorData?.error || 'Failed to delete project');
       }
       setUserProjects((prev) => prev.filter((p) => p.projectId !== projectId));
-      // Deletion changes totals too — drop the cached dashboard snapshot.
+      // Deletion also changes totals — drop the cached dashboard snapshot.
       invalidateDashboardCache(user?.userId);
       if (submittedProject?.projectId === projectId) {
         handleReset();
@@ -359,7 +355,6 @@ function App() {
         {renderContent()}
       </main>
 
-      {/* Analyzing overlay */}
       {isAnalyzing && submittedProject && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 flex flex-col items-center gap-4">
@@ -372,7 +367,6 @@ function App() {
         </div>
       )}
 
-      {/* Auth Modal */}
       <AuthModal
         key={authModalOpen ? 'open' : 'closed'}
         isOpen={authModalOpen}

@@ -66,7 +66,7 @@ function Card({ children, className = "" }) {
 
 function CardHeader({ title, subtitle, icon }) {
   return (
-    <div className="flex items-center gap-3 border-b border-gray-700/50 px-5 py-4">
+    <div className="flex items-center gap-3 border-b border-gray-700/50 px-4 py-3.5 sm:px-5 sm:py-4">
       {icon && (
         <div className="w-9 h-9 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
           {icon}
@@ -93,10 +93,13 @@ function RingGauge({
   const offset = circumference - (pct / 100) * circumference;
   return (
     <div
-      className="relative inline-flex items-center justify-center"
-      style={{ width: size, height: size }}
+      className="relative inline-flex w-full items-center justify-center"
+      style={{ maxWidth: size }}
     >
-      <svg width={size} height={size} className="-rotate-90">
+      <svg
+        viewBox={`0 0 ${size} ${size}`}
+        className="-rotate-90 h-auto w-full"
+      >
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -119,7 +122,7 @@ function RingGauge({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-4xl font-extrabold text-white leading-none">
+        <span className="text-3xl font-extrabold text-white leading-none sm:text-4xl">
           {value != null ? value : "\u2014"}
         </span>
         {subLabel && (
@@ -168,10 +171,13 @@ function DistributionDonut({
   });
   return (
     <div
-      className="relative inline-flex items-center justify-center"
-      style={{ width: size, height: size }}
+      className="relative inline-flex w-full items-center justify-center"
+      style={{ maxWidth: size }}
     >
-      <svg width={size} height={size} className="-rotate-90">
+      <svg
+        viewBox={`0 0 ${size} ${size}`}
+        className="-rotate-90 h-auto w-full"
+      >
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -198,7 +204,7 @@ function DistributionDonut({
             ))}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-4xl font-extrabold text-white leading-none">
+        <span className="text-3xl font-extrabold text-white leading-none sm:text-4xl">
           {total}
         </span>
         <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mt-1">
@@ -378,11 +384,6 @@ function formatDate(dateString) {
   });
 }
 
-// ---------------------------------------------------------------
-// Dashboard summary cache helpers live in src/utils/dashboardCache.js
-// (shared with App.jsx for invalidation on project submit/delete).
-// ---------------------------------------------------------------
-
 function Dashboard({
   userId,
   isLoggedIn,
@@ -402,14 +403,11 @@ function Dashboard({
     if (!isLoggedIn || !userId) return undefined;
     let cancelled = false;
 
-    // A fresh cached snapshot is already on screen (rendered from
-    // cachedSummary) — skip the network round-trip entirely.
     const cached = readDashboardCache(userId);
     const isFresh =
       cached && Date.now() - cached.timestamp < DASHBOARD_CACHE_TTL;
     if (isFresh && reloadKey === 0) return undefined;
 
-    // Otherwise fetch (or stale-while-revalidate an older snapshot).
     (async () => {
       try {
         const res = await fetch(
@@ -483,10 +481,10 @@ function Dashboard({
 
   if (!view) {
     return (
-      <div className="max-w-345 mx-auto px-4 sm:px-6 py-8">
+      <div className="max-w-345 mx-auto w-full px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <Skeleton className="h-6 w-44 mb-2" />
         <Skeleton className="h-4 w-80 mb-6" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.15fr_0.75fr_0.85fr_1.25fr] gap-5 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.15fr_0.75fr_0.85fr_1.25fr] gap-4 sm:gap-5 mb-6 sm:mb-8">
           <Skeleton className="h-40" />
           <Skeleton className="h-40" />
           <Skeleton className="h-40" />
@@ -525,9 +523,9 @@ function Dashboard({
 
   if (assessedProjects === 0) {
     return (
-      <div className="max-w-345 mx-auto px-4 sm:px-6 py-8">
+      <div className="max-w-345 mx-auto w-full px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <div className="mb-6">
-          <h2 className="text-xl font-semibold text-white tracking-tight">
+          <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
             Dashboard
           </h2>
           <p className="text-sm text-gray-300 mt-1">
@@ -566,9 +564,9 @@ function Dashboard({
   const distributionTotal = highCount + mediumCount + lowCount || 1;
 
   return (
-    <div className="max-w-345 mx-auto px-4 sm:px-6 py-8">
+    <div className="max-w-345 mx-auto w-full px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-white tracking-tight">
+        <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
           Dashboard
         </h2>
         <p className="text-sm text-gray-300 mt-1">
@@ -581,14 +579,14 @@ function Dashboard({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.15fr_0.75fr_0.85fr_1.25fr] gap-5 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.15fr_0.75fr_0.85fr_1.25fr] gap-4 sm:gap-5 mb-6 sm:mb-8">
         <Card className="flex flex-col">
           <CardHeader
             title="Total Projects"
             subtitle="All submitted projects"
             icon={<FolderIcon />}
           />
-          <div className="px-5 py-4 flex flex-col items-center justify-center text-center flex-1">
+          <div className="px-4 py-4 sm:px-5 flex flex-col items-center justify-center text-center flex-1">
             <span className="text-5xl font-extrabold text-white leading-none">
               {totalProjects}
             </span>
@@ -645,7 +643,7 @@ function Dashboard({
             subtitle="Across assessed projects"
             icon={<GaugeIcon />}
           />
-          <div className="px-5 py-4 flex flex-col items-center justify-center text-center flex-1">
+          <div className="px-4 py-4 sm:px-5 flex flex-col items-center justify-center text-center flex-1">
             <RingGauge
               value={avgRisk}
               size={132}
@@ -673,7 +671,7 @@ function Dashboard({
             subtitle="Across assessed projects"
             icon={<TrendingUpIcon />}
           />
-          <div className="px-5 py-4 flex flex-col items-center justify-center text-center flex-1">
+          <div className="px-4 py-4 sm:px-5 flex flex-col items-center justify-center text-center flex-1">
             <RingGauge
               value={avgSuccess}
               size={132}
@@ -693,7 +691,7 @@ function Dashboard({
             subtitle="High / Medium / Low split"
             icon={<PieChartIcon />}
           />
-          <div className="px-5 py-4 flex flex-col items-center justify-center text-center flex-1">
+          <div className="px-4 py-4 sm:px-5 flex flex-col items-center justify-center text-center flex-1">
             <DistributionDonut
               high={highCount}
               medium={mediumCount}
@@ -749,7 +747,7 @@ function Dashboard({
         </Card>
       </div>
 
-      <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 shadow-lg shadow-indigo-500/10 px-5 py-3 flex items-center gap-3 mb-8">
+      <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 shadow-lg shadow-indigo-500/10 px-4 py-3 sm:px-5 flex flex-col items-start gap-3 mb-6 sm:flex-row sm:items-center sm:mb-8">
         <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center shrink-0">
           <LightbulbIcon />
         </div>
@@ -790,7 +788,7 @@ function Dashboard({
           subtitle="Click a project to open its full Risk Assessment"
           icon={<GridIcon />}
         />
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto lg:block">
           <table className="w-full text-left text-sm min-w-200">
             <thead>
               <tr className="border-b border-gray-700/50">
@@ -837,7 +835,7 @@ function Dashboard({
                     <td className="px-5 py-3.5 text-gray-300 whitespace-nowrap">
                       {project.industry || "\u2014"}
                     </td>
-                    <td className="px-5 py-3.5 w-48 min-w-[11.25rem] max-w-[11.25rem]">
+                    <td className="px-5 py-3.5 w-48 min-w-45 max-w-45">
                       <div className="flex items-center justify-end gap-2 mb-1.5">
                         <span className={`font-bold ${theme.text}`}>
                           {project.riskScore != null
@@ -856,7 +854,7 @@ function Dashboard({
                           {project.riskLevel || "Unknown"}
                         </span>
                       </div>
-                      <div className="max-w-[11.25rem] ml-auto">
+                      <div className="max-w-45 ml-auto">
                         <Bar value={project.riskScore} colorClass={theme.bar} />
                       </div>
                     </td>
@@ -896,6 +894,86 @@ function Dashboard({
               })}
             </tbody>
           </table>
+        </div>
+
+        <div className="divide-y divide-gray-700/30 lg:hidden">
+          {sortedProjects.map((project) => {
+            const theme = themeFor(project.riskLevel);
+            return (
+              <button
+                key={project.projectId}
+                type="button"
+                onClick={() => onSelectProjectForAssessment?.(project)}
+                className="block w-full px-4 py-4 text-left transition-colors cursor-pointer hover:bg-indigo-500/10 active:bg-indigo-500/15 sm:px-5 group"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-indigo-400 group-hover:text-indigo-300">
+                      {project.projectName}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-gray-400">
+                      {project.industry || "\u2014"} &middot;{" "}
+                      {formatDate(project.createdAt)}
+                    </p>
+                  </div>
+                  <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-indigo-400">
+                    View
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-lg border border-gray-700/30 bg-gray-900/40 px-2 py-2 text-center">
+                    <p
+                      className={`text-sm font-bold ${theme.text}`}
+                    >
+                      {project.riskScore != null
+                        ? project.riskScore
+                        : "\u2014"}
+                      <span className="text-[10px] font-medium text-gray-500">
+                        /100
+                      </span>
+                    </p>
+                    <Bar value={project.riskScore} colorClass={theme.bar} />
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                      {project.riskLevel || "Unknown"} risk
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-700/30 bg-gray-900/40 px-2 py-2 text-center">
+                    <p className="text-sm font-bold text-gray-200">
+                      {project.successProbability != null
+                        ? `${project.successProbability}%`
+                        : "\u2014"}
+                    </p>
+                    <p className="mt-3 text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                      Success
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-700/30 bg-gray-900/40 px-2 py-2 text-center">
+                    <p className="text-sm font-bold text-gray-200">
+                      {project.feasibilityScore != null
+                        ? project.feasibilityScore
+                        : "\u2014"}
+                    </p>
+                    <p className="mt-3 text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                      Feasibility
+                    </p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </Card>
     </div>

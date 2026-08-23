@@ -33,7 +33,6 @@ public class MarketAnalysisService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + projectId));
 
-        // Remove ALL existing analysis for this project to prevent duplicates
         List<CompetitorAnalysis> existingCompetitors = competitorAnalysisRepository.findByProjectProjectId(projectId);
         if (!existingCompetitors.isEmpty()) {
             competitorAnalysisRepository.deleteAll(existingCompetitors);
@@ -61,7 +60,6 @@ public class MarketAnalysisService {
 
         MarketAnalysis savedAnalysis = marketAnalysisRepository.save(analysis);
 
-        // Deduplicate competitors by name before saving
         List<CompetitorAnalysis> competitors = marketData.getCompetitors().stream()
                 .collect(Collectors.toMap(
                         c -> c.getName().trim().toLowerCase(),

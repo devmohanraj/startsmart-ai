@@ -85,7 +85,6 @@ public class LangGraphClient {
         return m;
     }
 
-    /** Shape of the LangGraph service response: { "recommendations": [...] }. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record LangGraphRecommendationsResponse(List<LlmRecommendationDTO> recommendations) {
     }

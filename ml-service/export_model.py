@@ -16,7 +16,6 @@ def main():
     )
     xgb_model.fit(X_train, y_train, sample_weight=w_train)
 
-    # Save model
     joblib.dump(xgb_model, "risk_model.pkl")
 
     # Save exact column order — critical for correct inference encoding
@@ -24,7 +23,6 @@ def main():
     with open("model_columns.json", "w") as f:
         json.dump(model_columns, f, indent=2)
 
-    # Save valid category values (for reconstructing one-hot encoding)
     category_columns = [c for c in model_columns if c.startswith("primary_category_")]
     valid_categories = [c.replace("primary_category_", "") for c in category_columns]
     with open("valid_categories.json", "w") as f:

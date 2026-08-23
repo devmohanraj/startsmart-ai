@@ -10,10 +10,6 @@ from xgboost import XGBClassifier
 def main():
     X_train, X_test, y_train, y_test, w_train, w_test = load_and_prepare_data("data.csv")
 
-    # -------------------------------------------------
-    # STEP 5: Logistic Regression baseline
-    # (feature scaling required — tree models don't need this)
-    # -------------------------------------------------
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
@@ -34,9 +30,6 @@ def main():
     print("Confusion Matrix:")
     print(confusion_matrix(y_test, log_reg_preds))
 
-    # -------------------------------------------------
-    # STEP 6: XGBoost comparison model (primary model)
-    # -------------------------------------------------
     xgb_model = XGBClassifier(
         n_estimators=100,
         max_depth=4,
@@ -59,9 +52,6 @@ def main():
     print("Confusion Matrix:")
     print(confusion_matrix(y_test, xgb_preds))
 
-    # -------------------------------------------------
-    # STEP 7: Side-by-side summary
-    # -------------------------------------------------
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)

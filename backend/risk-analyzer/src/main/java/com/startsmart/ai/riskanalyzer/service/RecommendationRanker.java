@@ -15,23 +15,9 @@ public final class RecommendationRanker {
     public static final List<String> CATEGORY_ORDER = List.of(
             "financial", "market", "technical", "operational", "execution");
 
-    /**
-     * A ranked category: its key, its risk score (may be null when the source
-     * assessment did not compute it) and the original reason text from the
-     * risk breakdown.
-     */
     public record RankedCategory(String category, Double score, String reason) {
     }
 
-    /**
-     * Ranks the five risk categories by score descending and returns the top
-     * three. Categories with no breakdown entry are skipped; null scores sort
-     * to the bottom (treated as 0). Sorting is stable, so equal scores keep
-     * {@link #CATEGORY_ORDER} order.
-     *
-     * @param breakdown the persisted risk breakdown from the risk assessment
-     * @return the top 3 categories, highest risk first
-     */
     public static List<RankedCategory> selectTopThree(RiskAssessmentResponseDTO.RiskBreakdownDTO breakdown) {
         return CATEGORY_ORDER.stream()
                 .map(category -> toRankedCategory(breakdown, category))
