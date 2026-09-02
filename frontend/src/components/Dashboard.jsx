@@ -5,7 +5,7 @@ import {
   readDashboardCache,
   writeDashboardCache,
 } from "../utils/dashboardCache";
-import { dashboardApi } from "../services/api";
+import { dashboardApi, reportsApi } from "../services/api";
 
 function severityOf(score) {
   if (score == null || Number.isNaN(Number(score))) return "none";
@@ -216,6 +216,45 @@ function DistributionDonut({
   );
 }
 
+function ComparisonRows({ projects }) {
+  return (
+    <div className="space-y-4">
+      {projects.map((p) => {
+        const riskMeta = themeFor(severityOf(p.riskScore));
+        const successColor = themeFor(severityOf(100 - Number(p.successProbability))).bar;
+        return (
+          <div key={p.projectId} className="rounded-xl border border-gray-700/30 bg-gray-900/30 p-3.5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[13px] font-semibold text-white truncate">
+                {p.projectName}
+              </span>
+              <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${riskMeta.badge}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${riskMeta.dot}`} />
+                {p.riskLevel || "\u2014"}
+              </span>
+            </div>
+            {[
+              { label: "Risk", value: p.riskScore, bar: riskMeta.bar, display: `${p.riskScore ?? "\u2014"}/100` },
+              { label: "Success", value: p.successProbability, bar: successColor, display: `${p.successProbability ?? "\u2014"}%` },
+              { label: "Feasibility", value: p.feasibilityScore, bar: "bg-indigo-500", display: `${p.feasibilityScore ?? "\u2014"}/100` },
+            ].map((row) => (
+              <div key={row.label} className="flex items-center gap-3 mt-1.5">
+                <span className="w-20 shrink-0 text-[11px] text-gray-400">{row.label}</span>
+                <div className="flex-1">
+                  <Bar value={row.value} colorClass={row.bar} track="bg-gray-700/60" />
+                </div>
+                <span className="w-14 shrink-0 text-right text-[11px] font-semibold text-gray-200">
+                  {row.display}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function GridIcon() {
   return (
     <svg
@@ -399,6 +438,20 @@ function Dashboard({
     key: "createdAt",
     direction: "desc",
   });
+  const [downloadingPortfolio, setDownloadingPortfolio] = useState(false);
+
+  const handleDownloadReport = async () => {
+    if (downloadingPortfolio) return;
+    setDownloadingPortfolio(true);
+    setError("");
+    try {
+      await reportsApi.generatePortfolio(userId);
+    } catch (err) {
+      setError(err?.message || "Failed to generate report");
+    } finally {
+      setDownloadingPortfolio(false);
+    }
+  };
 
   useEffect(() => {
     if (!isLoggedIn || !userId) return undefined;
@@ -557,18 +610,40 @@ function Dashboard({
 
   return (
     <div className="max-w-345 mx-auto w-full px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
-          Dashboard
-        </h2>
-        <p className="text-sm text-gray-300 mt-1">
-          Portfolio-level view across {assessedProjects} assessed project
-          {assessedProjects === 1 ? "" : "s"}
-          {totalProjects > assessedProjects
-            ? ` (${totalProjects - assessedProjects} awaiting assessment)`
-            : ""}
-          .
-        </p>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
+            Dashboard
+          </h2>
+          <p className="text-sm text-gray-300 mt-1">
+            Portfolio-level view across {assessedProjects} assessed project
+            {assessedProjects === 1 ? "" : "s"}
+            {totalProjects > assessedProjects
+              ? ` (${totalProjects - assessedProjects} awaiting assessment)`
+              : ""}
+            .
+          </p>
+        </div>
+        <button
+          onClick={handleDownloadReport}
+          disabled={downloadingPortfolio}
+          className="inline-flex items-center justify-center gap-2 px-4 h-10 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+            />
+          </svg>
+          {downloadingPortfolio ? "Generating PDF..." : "Download Report"}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.15fr_0.75fr_0.85fr_1.25fr] gap-4 sm:gap-5 mb-6 sm:mb-8">
@@ -774,6 +849,19 @@ function Dashboard({
         </p>
       </div>
 
+      {sortedProjects.length >= 2 && (
+        <Card className="mb-6 sm:mb-8">
+          <CardHeader
+            title="Project Comparison"
+            subtitle="Risk, success probability, and feasibility side-by-side"
+            icon={<PieChartIcon />}
+          />
+          <div className="px-5 py-4">
+            <ComparisonRows projects={sortedProjects} />
+          </div>
+        </Card>
+      )}
+
       <Card>
         <CardHeader
           title="Projects Overview"
@@ -892,14 +980,16 @@ function Dashboard({
           {sortedProjects.map((project) => {
             const theme = themeFor(project.riskLevel);
             return (
-              <button
+              <div
                 key={project.projectId}
-                type="button"
-                onClick={() => onSelectProjectForAssessment?.(project)}
-                className="block w-full px-4 py-4 text-left transition-colors cursor-pointer hover:bg-indigo-500/10 active:bg-indigo-500/15 sm:px-5 group"
+                className="px-4 py-4 transition-colors hover:bg-indigo-500/10 active:bg-indigo-500/15 sm:px-5 group"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => onSelectProjectForAssessment?.(project)}
+                    className="min-w-0 flex-1 text-left cursor-pointer"
+                  >
                     <p className="truncate text-sm font-semibold text-indigo-400 group-hover:text-indigo-300">
                       {project.projectName}
                     </p>
@@ -907,7 +997,7 @@ function Dashboard({
                       {project.industry || "\u2014"} &middot;{" "}
                       {formatDate(project.createdAt)}
                     </p>
-                  </div>
+                  </button>
                   <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-indigo-400">
                     View
                     <svg
@@ -963,7 +1053,7 @@ function Dashboard({
                     </p>
                   </div>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>

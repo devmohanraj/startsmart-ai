@@ -42,6 +42,9 @@ public class DashboardSummaryDTO {
     @Schema(description = "Percentage of assessed projects in which the top risk category is the highest-scoring one, rounded to 1 decimal")
     private Double topRiskCategoryPercentage;
 
+    @Schema(description = "Average 0-100 risk score per risk category (Financial, Market, Technical, Operational, Execution) across assessed projects, ordered by severity descending — null when no breakdown data exists")
+    private List<RiskCategoryBreakdownDTO> riskCategoryBreakdown;
+
     @Schema(description = "Per-project key metrics, sorted by creation date (most recent first)")
     private List<ProjectSummaryDTO> projects;
 
@@ -74,5 +77,21 @@ public class DashboardSummaryDTO {
 
         @Schema(description = "Timestamp when the project was created")
         private LocalDateTime createdAt;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class RiskCategoryBreakdownDTO {
+
+        @Schema(description = "Risk category display label (e.g. Financial)")
+        private String category;
+
+        @Schema(description = "Average 0-100 risk score for this category across assessed projects, rounded to 1 decimal")
+        private Double averageScore;
+
+        @Schema(description = "Number of assessed projects that contribute to this category score")
+        private Long projectCount;
     }
 }

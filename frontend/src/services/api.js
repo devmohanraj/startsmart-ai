@@ -137,3 +137,88 @@ export const recommendationsApi = {
   fetchOrGenerate: (projectId, method) =>
     fetchOrGenerate(`/api/projects/${projectId}/recommendations`, method),
 };
+
+export const reportsApi = {
+  generate: async (projectId) => {
+    try {
+      const { data } = await api.request({
+        method: "post",
+        url: `/api/projects/${projectId}/report`,
+      });
+      return data;
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        throw new Error(
+          err.response.data?.error || statusMessage(err.response.status),
+          { cause: err },
+        );
+      }
+      throw new Error(err.message, { cause: err });
+    }
+  },
+  generatePortfolio: async (userId) => {
+    try {
+      const response = await api.request({
+        method: "post",
+        url: "/api/reports/portfolio",
+        params: { userId },
+        responseType: "blob",
+      });
+      const fileName = `StartSmart-Portfolio-Report-${userId}.pdf`;
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      return { ok: true };
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response && err.response.data) {
+        const text = await err.response.data.text();
+        try {
+          const parsed = JSON.parse(text);
+          throw new Error(parsed.error || "Failed to generate portfolio report", { cause: err });
+        } catch {
+          throw new Error("Failed to generate portfolio report");
+        }
+      }
+      throw new Error(err.message, { cause: err });
+    }
+  },
+  downloadReport: async (reportId, fallbackName) => {
+    try {
+      const response = await api.request({
+        method: "get",
+        url: `/api/reports/${reportId}/download`,
+        responseType: "blob",
+      });
+      const disposition = response.headers["content-disposition"] || "";
+      const match = /filename\*=UTF-8''([^;]+)/.exec(disposition);
+      const fileName = match
+        ? decodeURIComponent(match[1])
+        : fallbackName || `StartSmart-report-${reportId}.pdf`;
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      return { ok: true };
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response && err.response.data) {
+        const text = await err.response.data.text();
+        try {
+          const parsed = JSON.parse(text);
+          throw new Error(parsed.error || "Failed to download report", { cause: err });
+        } catch {
+          throw new Error("Failed to download report");
+        }
+      }
+      throw new Error(err.message, { cause: err });
+    }
+  },
+};

@@ -1,34 +1,37 @@
-{
-  "properties": [
-    {
-      "name": "cors.allowed-origins",
-      "type": "java.lang.String",
-      "description": "A description for 'cors.allowed-origins'"
-    },
-    {
-      "name": "ml.service.url",
-      "type": "java.lang.String",
-      "description": "A description for 'ml.service.url'"
-    },
-    {
-      "name": "groq.api.key",
-      "type": "java.lang.String",
-      "description": "Groq API key used for risk assessment LLM calls."
-    },
-    {
-      "name": "groq.api.key.analysis",
-      "type": "java.lang.String",
-      "description": "Groq API key used for market analysis LLM calls (separate from the risk assessment key)."
-    },
-    {
-      "name": "groq.api.url",
-      "type": "java.lang.String",
-      "description": "Groq chat completions endpoint (OpenAI-compatible)."
-    },
-    {
-      "name": "groq.model",
-      "type": "java.lang.String",
-      "description": "Groq model used for risk assessment generation."
-    }
-  ]
-}
+{"properties": [
+  {
+    "name": "cors.allowed-origins",
+    "type": "java.lang.String",
+    "description": "A description for 'cors.allowed-origins'"
+  },
+  {
+    "name": "ml.service.url",
+    "type": "java.lang.String",
+    "description": "A description for 'ml.service.url'"
+  },
+  {
+    "name": "groq.api.key",
+    "type": "java.lang.String",
+    "description": "Groq API key used for risk assessment LLM calls."
+  },
+  {
+    "name": "groq.api.key.analysis",
+    "type": "java.lang.String",
+    "description": "Groq API key used for market analysis LLM calls (separate from the risk assessment key)."
+  },
+  {
+    "name": "groq.api.url",
+    "type": "java.lang.String",
+    "description": "Groq chat completions endpoint (OpenAI-compatible)."
+  },
+  {
+    "name": "groq.model",
+    "type": "java.lang.String",
+    "description": "Groq model used for risk assessment generation."
+  },
+  {
+    "name": "reports.dir",
+    "type": "java.lang.String",
+    "description": "A description for 'reports.dir'"
+  }
+]}

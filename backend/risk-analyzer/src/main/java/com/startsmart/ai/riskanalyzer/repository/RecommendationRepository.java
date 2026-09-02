@@ -7,5 +7,6 @@ import java.util.List;
 
 public interface RecommendationRepository extends JpaRepository<Recommendation, Long> {
     List<Recommendation> findByProjectProjectId(Long projectId);
+    List<Recommendation> findByProjectUserUserId(Long userId);
     void deleteByProjectProjectId(Long projectId);
 }

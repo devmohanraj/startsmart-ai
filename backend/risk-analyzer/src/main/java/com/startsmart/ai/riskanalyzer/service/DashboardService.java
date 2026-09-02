@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -90,6 +91,7 @@ public class DashboardService {
                 .lowRiskCount(countByLevel(summaries, "low"))
                 .topRiskCategory(topDriver.category())
                 .topRiskCategoryPercentage(topDriver.percentage())
+                .riskCategoryBreakdown(buildRiskCategoryBreakdown(summaries, predictionsByProjectId))
                 .projects(summaries)
                 .build();
     }
@@ -100,6 +102,43 @@ public class DashboardService {
                 .filter(value -> value != null && !value.isNaN())
                 .mapToDouble(Double::doubleValue)
                 .sum();
+    }
+
+    private List<DashboardSummaryDTO.RiskCategoryBreakdownDTO> buildRiskCategoryBreakdown(
+            List<ProjectSummaryDTO> summaries, Map<Long, Prediction> predictionsByProjectId) {
+        Map<String, List<Double>> scoresByCategory = new HashMap<>();
+        for (ProjectSummaryDTO summary : summaries) {
+            RiskBreakdownDTO breakdown = fromJson(
+                    predictionsByProjectId.get(summary.getProjectId()) != null
+                            ? predictionsByProjectId.get(summary.getProjectId()).getRiskBreakdownJson()
+                            : null);
+            if (breakdown == null) {
+                continue;
+            }
+            for (Map.Entry<String, String> label : RISK_CATEGORY_LABELS.entrySet()) {
+                Double score = scoreOf(breakdown, label.getKey());
+                if (score != null) {
+                    scoresByCategory.computeIfAbsent(label.getValue(), k -> new ArrayList<>()).add(score);
+                }
+            }
+        }
+        if (scoresByCategory.isEmpty()) {
+            return List.of();
+        }
+        return scoresByCategory.entrySet().stream()
+                .map(entry -> DashboardSummaryDTO.RiskCategoryBreakdownDTO.builder()
+                        .category(entry.getKey())
+                        .averageScore(round1(sum(entry.getValue()) / entry.getValue().size()))
+                        .projectCount((long) entry.getValue().size())
+                        .build())
+                .sorted(Comparator.comparingDouble(
+                        (DashboardSummaryDTO.RiskCategoryBreakdownDTO b) -> b.getAverageScore() == null
+                                ? 0.0 : b.getAverageScore()).reversed())
+                .toList();
+    }
+
+    private double sum(List<Double> values) {
+        return values.stream().mapToDouble(Double::doubleValue).sum();
     }
 
     private long countByLevel(List<ProjectSummaryDTO> summaries, String level) {
