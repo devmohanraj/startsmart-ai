@@ -99,6 +99,12 @@ Weighted evaluation across seven metrics:
 - Assessment coverage
 - Top risk driver insights
 
+### 📄 Report Generation
+
+- Per-project assessment report (PDF) combining risk score, SWOT, and recommendations
+- Portfolio report (PDF) compiling all assessed projects for a user into a single document
+- Downloadable report trigger directly from the dashboard
+
 ---
 
 ## 🛠️ Tech Stack
@@ -124,6 +130,7 @@ Weighted evaluation across seven metrics:
 | PostgreSQL | Application database |
 | Neon PostgreSQL | Cloud database |
 | SpringDoc OpenAPI | API documentation |
+| OpenPDF | PDF report generation |
 | Maven | Build automation |
 
 ### Machine Learning & AI
@@ -428,6 +435,7 @@ GROQ_API_KEY_ANALYSIS
 GROQ_API_KEY
 GROQ_MODEL
 ML_SERVICE_URL
+REPORTS_DIR
 CORS_ALLOWED_ORIGINS
 ```
 
@@ -576,6 +584,10 @@ Complete request and response schemas are available through Swagger UI.
 | GET / POST | `/api/projects/{projectId}/risk-analysis` | Fetch / generate risk assessment |
 | GET / POST | `/api/projects/{projectId}/recommendations` | Fetch / generate recommendations |
 | GET | `/api/dashboard/summary?userId=` | Portfolio dashboard summary |
+| POST | `/api/projects/{projectId}/report` | Generate project assessment report (PDF) |
+| GET | `/api/projects/{projectId}/report` | Retrieve latest project report metadata |
+| GET | `/api/reports/{reportId}/download` | Download a stored report PDF |
+| POST | `/api/reports/portfolio?userId=` | Generate and download portfolio report (PDF) |
 
 ### ML Service
 
