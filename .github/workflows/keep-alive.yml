@@ -1,0 +1,16 @@
+name: Keep Services Warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping ML service
+        run: curl -sf https://startsmart-ai-ml-service.onrender.com/|| true
+
+      - name: Ping Spring Boot backend
+        run: curl -sf https://startsmartai-backend.onrender.com/actuator/health || true

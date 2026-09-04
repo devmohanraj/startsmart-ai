@@ -3,7 +3,73 @@ import axios from "axios";
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   headers: { "Content-Type": "application/json" },
+  // Read timeout for the base Spring Boot API. A Render free-tier backend can
+  // be cold on the first call after idle, so individual attempts get this
+  // bound while the retry interceptor below rides over the boot.
+  timeout: 30000,
 });
+
+// --- Backend cold-start retry -------------------------------------------------
+// A Render free-tier backend can be cold on the first request after idle. Cold
+// start surfaces either as a network-level failure (no HTTP response at all:
+// connection refused, dropped connection, or request timeout) or as a 502/503
+// from Render's edge proxy while the container is still booting. Both are real
+// cold-start signals and are retried here with exponential backoff, separate
+// from the ML-service wake-up handling that lives in RiskAssessment.jsx.
+// Anything else that returns a response (any other 4xx/5xx) is a real error.
+const MAX_RETRIES = 2; // 1 initial attempt + 2 retries = 3 total
+const BASE_DELAY_MS = 2000;
+const RETRYABLE_STATUSES = new Set([502, 503]);
+
+let connectingCount = 0;
+const connectingListeners = new Set();
+
+function notifyConnecting(active) {
+  connectingListeners.forEach((listener) => listener(active));
+}
+
+export function onConnectingChange(listener) {
+  connectingListeners.add(listener);
+  return () => connectingListeners.delete(listener);
+}
+
+function isRetryableFailure(error) {
+  if (!axios.isAxiosError(error) || !error.config) return false;
+
+  // An intentionally cancelled call must never be retried.
+  if (error.code === "ERR_CANCELED") return false;
+
+  // Connection-level failure (no HTTP response) is a cold-start signal.
+  if (!error.response) return true;
+
+  // A proxy 502/503 while the container boots is also a cold-start signal.
+  return RETRYABLE_STATUSES.has(error.response.status);
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const config = error.config || {};
+    const retryCount = config.__retryCount || 0;
+
+    if (!isRetryableFailure(error) || retryCount >= MAX_RETRIES) {
+      return Promise.reject(error);
+    }
+
+    connectingCount += 1;
+    if (connectingCount === 1) notifyConnecting(true);
+
+    try {
+      config.__retryCount = retryCount + 1;
+      const delay = BASE_DELAY_MS * 2 ** retryCount; // 2s, 4s
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return await api.request(config);
+    } finally {
+      connectingCount = Math.max(0, connectingCount - 1);
+      if (connectingCount === 0) notifyConnecting(false);
+    }
+  },
+);
 
 function statusMessage(status) {
   return `Request failed with status ${status}`;
@@ -92,6 +158,9 @@ export const marketAnalysisApi = {
     request({
       method: "post",
       url: `/api/projects/${projectId}/market-analysis`,
+      // Generation waits on Groq server-side; keep the client timeout off so
+      // the slow-but-legitimate call is not cut off by the base API timeout.
+      timeout: 0,
     }),
 
   poll: async (projectId) => {
@@ -112,7 +181,13 @@ export const marketAnalysisApi = {
 
 async function fetchOrGenerate(path, method) {
   try {
-    const { data } = await api.request({ method, url: path });
+    const { data } = await api.request({
+      method,
+      url: path,
+      // Only the POST (generation) can wait a long time on ML/Groq server-side.
+      // Keep its client timeout off; GET (cached fetch) stays bounded.
+      timeout: method === "POST" ? 0 : undefined,
+    });
     return data;
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
@@ -144,6 +219,7 @@ export const reportsApi = {
       const { data } = await api.request({
         method: "post",
         url: `/api/projects/${projectId}/report`,
+        timeout: 0,
       });
       return data;
     } catch (err) {
@@ -163,6 +239,7 @@ export const reportsApi = {
         url: "/api/reports/portfolio",
         params: { userId },
         responseType: "blob",
+        timeout: 0,
       });
       const fileName = `StartSmart-Portfolio-Report-${userId}.pdf`;
       const url = window.URL.createObjectURL(response.data);

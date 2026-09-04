@@ -30,6 +30,12 @@ function severityOf(score) {
   return "low";
 }
 
+function formatElapsed(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 const RISK_THEME = {
   low:    { ring: "#10b981", text: "text-emerald-400", badge: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20", bar: "bg-emerald-500", dot: "bg-emerald-500" },
   medium: { ring: "#f59e0b", text: "text-amber-400",   badge: "bg-amber-500/10 text-amber-400 border border-amber-500/20",   bar: "bg-amber-500",   dot: "bg-amber-500" },
@@ -361,6 +367,8 @@ function RiskAssessment({
   const [error, setError] = useState("");
   const [isPolling, setIsPolling] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isWakingUp, setIsWakingUp] = useState(false);
+  const [wakeUpSeconds, setWakeUpSeconds] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Refs (not state) keep the guards stable across StrictMode's double-invoke
@@ -368,6 +376,7 @@ function RiskAssessment({
   const fetchInProgressRef = useRef(false);
   const hasFetchedRef = useRef(false);
   const lastFetchKeyRef = useRef(null);
+  const wakeUpStartedAtRef = useRef(null);
 
   // Popup only shows while the ML + Groq generation (POST) is running —
   // never while merely fetching an already-generated assessment from the DB (GET).
@@ -419,12 +428,15 @@ function RiskAssessment({
             result = await fetchAssessment(projectId, "POST");
           } catch (postErr) {
             if (!isCurrentCycle()) return;
+            const wakeUp = typeof postErr?.message === "string"
+              && postErr.message.toLowerCase().includes("temporarily unavailable");
             setError(postErr.message);
             setLoading(false);
             setIsGenerating(false);
-            if (/Request failed with status (500|502|503)/.test(postErr.message)) {
+            if (wakeUp || /Request failed with status (500|502|503)/.test(postErr.message)) {
               setIsPolling(true);
             }
+            setIsWakingUp(wakeUp);
             return;
           }
         }
@@ -433,6 +445,7 @@ function RiskAssessment({
         setError("");
         setLoading(false);
         setIsGenerating(false);
+        setIsWakingUp(false);
         onAssessmentLoaded?.(projectId, result);
       } finally {
         // Refs released only after the ENTIRE GET(+POST fallback) cycle resolves.
@@ -446,23 +459,70 @@ function RiskAssessment({
 
   useEffect(() => {
     if (!projectId || !error || !isPolling) return;
-    if (!/Request failed with status (500|502|503)/.test(error)) return;
+    if (!isWakingUp && !/Request failed with status (500|502|503)/.test(error)) return;
+
+    // While the risk engine is waking up the assessment was never persisted,
+    // so a plain GET can never succeed. Re-run the full GET-then-POST cycle on
+    // an interval until the engine comes back and returns data.
+    if (isWakingUp) {
+      const interval = setInterval(() => {
+        if (fetchInProgressRef.current) return;
+        setReloadKey((k) => k + 1);
+      }, 8000);
+      return () => clearInterval(interval);
+    }
+
     const interval = setInterval(() => {
       fetchAssessment(projectId, "GET")
         .then((json) => {
           setData(json);
           setError("");
           setIsPolling(false);
+          setIsWakingUp(false);
         })
         .catch(() => {});
     }, 3000);
     return () => clearInterval(interval);
-  }, [projectId, error, isPolling, fetchAssessment]);
+  }, [projectId, error, isPolling, isWakingUp, fetchAssessment]);
+
+  // Runs 1s ticks while the wake-up state is active, computing elapsed time from
+  // a start timestamp held in a ref. The ref is cleared on exit and re-seeded on
+  // re-entry, so the counter self-corrects without any synchronous setState in
+  // the effect body.
+  useEffect(() => {
+    if (!isWakingUp) {
+      wakeUpStartedAtRef.current = null;
+      return undefined;
+    }
+    if (wakeUpStartedAtRef.current == null) {
+      wakeUpStartedAtRef.current = Date.now();
+    }
+    const tick = () => {
+      if (wakeUpStartedAtRef.current == null) {
+        setWakeUpSeconds(0);
+        return;
+      }
+      setWakeUpSeconds(Math.floor((Date.now() - wakeUpStartedAtRef.current) / 1000));
+    };
+    // Fire the tick once after the current synchronous work so a fresh cycle
+    // renders 0:00 on its first frame instead of carrying over the previous
+    // cycle's stale elapsed value.
+    const firstTick = setTimeout(tick, 0);
+    const interval = setInterval(tick, 1000);
+    return () => {
+      clearTimeout(firstTick);
+      clearInterval(interval);
+    };
+  }, [isWakingUp]);
 
   const retry = () => {
     if (isGenerating) return;
     if (riskAssessmentCache[projectId]) return;
     setIsGenerating(true);
+    setIsPolling(false);
+    setIsWakingUp(false);
+    setWakeUpSeconds(0);
+    setError("");
     setReloadKey((k) => k + 1);
   };
 
@@ -532,6 +592,9 @@ function RiskAssessment({
             setData(riskAssessmentCache[picked.projectId] || null);
             setLoading(!riskAssessmentCache[picked.projectId]);
             setError("");
+            setIsPolling(false);
+            setIsWakingUp(false);
+            setWakeUpSeconds(0);
             if (onSelectProject) onSelectProject(picked);
           }}
         />
@@ -583,26 +646,44 @@ function RiskAssessment({
     return (
       <div className="min-h-screen flex justify-center px-6 py-16">
         <div className="w-full max-w-md text-center">
-          <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center mx-auto mb-5">
-            <AlertIcon />
-          </div>
-          <h2 className="text-lg font-bold text-white mb-2">Could not generate the risk assessment</h2>
-          <p className="text-sm text-gray-400 mb-2">{error}</p>
-          {isPolling && (
-            <p className="text-[13px] font-medium text-indigo-400 mb-3 flex items-center justify-center gap-2">
-              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Waiting for the analysis service...
-            </p>
+          {isWakingUp ? (
+            <>
+              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto mb-5">
+                <svg className="w-6 h-6 animate-spin" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-bold text-white mb-2">Preparing your risk assessment</h2>
+              <p className="text-sm text-gray-300 mb-2">
+                Waking up the risk engine — this can take a few minutes on the first request.{" "}
+                <span className="text-indigo-300">(Elapsed: {formatElapsed(wakeUpSeconds)})</span>
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center mx-auto mb-5">
+                <AlertIcon />
+              </div>
+              <h2 className="text-lg font-bold text-white mb-2">Could not generate the risk assessment</h2>
+              <p className="text-sm text-gray-400 mb-2">{error}</p>
+              {isPolling && (
+                <p className="text-[13px] font-medium text-indigo-400 mb-3 flex items-center justify-center gap-2">
+                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Waiting for the analysis service...
+                </p>
+              )}
+              <button
+                onClick={retry}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer"
+              >
+                {isPolling ? "Retry now" : "Try again"}
+              </button>
+            </>
           )}
-          <button
-            onClick={retry}
-            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer"
-          >
-            {isPolling ? "Retry now" : "Try again"}
-          </button>
         </div>
       </div>
     );
@@ -634,6 +715,7 @@ function RiskAssessment({
                   setLoading(!cached);
                   setError("");
                   setIsPolling(false);
+                  setIsWakingUp(false);
                   if (onSelectProject) onSelectProject(picked);
                 }}
                 label=""
@@ -652,6 +734,8 @@ function RiskAssessment({
                 setData(null);
                 setLoading(true);
                 setError("");
+                setIsPolling(false);
+                setIsWakingUp(false);
                 if (onReset) onReset();
               }}
                 className="h-10 px-3 text-xs font-medium text-gray-400 hover:text-indigo-400 border border-gray-700/50 rounded-lg hover:bg-gray-700/50 transition-colors cursor-pointer"

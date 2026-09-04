@@ -18,10 +18,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.util.retry.Retry;
 
 import java.math.BigDecimal;
+import java.net.ConnectException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 @Service
@@ -102,12 +107,36 @@ public class RiskAssessmentService {
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(MlPredictionResponseDTO.class)
+                .timeout(Duration.ofSeconds(90))
+                .retryWhen(Retry.backoff(3, Duration.ofSeconds(2))
+                        .maxBackoff(Duration.ofSeconds(16))
+                        .filter(RiskAssessmentService::isTransientMlFailure))
+                .onErrorMap(RiskAssessmentService::isTransientMlFailure,
+                        t -> new MlEngineUnavailableException(
+                                "The risk engine is temporarily unavailable and could not be reached. "
+                                        + "It may still be starting up — please try again in a moment.", t))
                 .block();
 
         if (response == null) {
             throw new LlmService.LlmException("ML service returned null response");
         }
         return response;
+    }
+
+    private static boolean isTransientMlFailure(Throwable throwable) {
+        // A cold-starting ML service commonly surfaces as a connection timeout,
+        // a refused connection, or a temporary 502/503 gateway response. Only
+        // these transient conditions are retried; anything else is left alone.
+        return throwable instanceof WebClientResponseException.BadGateway
+                || throwable instanceof WebClientResponseException.ServiceUnavailable
+                || throwable instanceof TimeoutException
+                || throwable instanceof ConnectException;
+    }
+
+    public static class MlEngineUnavailableException extends RuntimeException {
+        public MlEngineUnavailableException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 
     private LlmRiskResponseDTO callGroqRiskAnalysis(Project project, MlPredictionResponseDTO mlPrediction) {

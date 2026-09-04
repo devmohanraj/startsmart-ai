@@ -11,7 +11,7 @@ import MyProjects from './components/MyProjects';
 import RiskAssessment from './components/RiskAssessment';
 import Dashboard from './components/Dashboard';
 import { invalidateDashboardCache } from './utils/dashboardCache';
-import { projectsApi } from './services/api';
+import { projectsApi, onConnectingChange } from './services/api';
 import './index.css';
 
 if ('scrollRestoration' in window.history) {
@@ -36,6 +36,12 @@ function App() {
   const activeTab = ROUTE_TO_TAB[location.pathname] || 'Project Input';
   const [submittedProject, setSubmittedProject] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const [connectingToServer, setConnectingToServer] = useState(false);
+
+  useEffect(() => {
+    return onConnectingChange(setConnectingToServer);
+  }, []);
 
   const [user, setUser] = useState(() => {
     try {
@@ -374,6 +380,18 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+
+      {connectingToServer && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 flex flex-col items-center gap-4">
+            <svg className="w-12 h-12 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <p className="text-sm font-medium text-gray-300">Connecting to the server — this can take a moment on the first request.</p>
+          </div>
+        </div>
+      )}
 
       {isAnalyzing && effectiveSubmittedProject && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">

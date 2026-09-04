@@ -61,4 +61,9 @@ public class RiskAssessmentController {
     public ResponseEntity<Map<String, String>> handleLlmError(LlmService.LlmException ex) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", ex.getMessage()));
     }
+
+    @ExceptionHandler(RiskAssessmentService.MlEngineUnavailableException.class)
+    public ResponseEntity<Map<String, String>> handleMlEngineUnavailable(RiskAssessmentService.MlEngineUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("error", ex.getMessage()));
+    }
 }
