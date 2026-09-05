@@ -43,7 +43,6 @@ public class RiskAssessmentService {
     @Value("${ml.service.url:http://localhost:8000}")
     private String mlServiceUrl;
 
-    // Deterministic weights for feasibility score (NOT from llmData)
     private static final double WEIGHT_FINANCIAL = 0.18;
     private static final double WEIGHT_TEAM = 0.15;
     private static final double WEIGHT_COMPETITIVE = 0.15;
@@ -67,7 +66,7 @@ public class RiskAssessmentService {
         RiskAssessmentResponseDTO.RiskBreakdownDTO riskBreakdown = buildRiskBreakdown(project, mlPrediction, llmData);
         double overallRiskScore = computeOverallRiskScore(riskBreakdown);
         String riskLevel = RiskScoreAggregator.deriveRiskLevel(overallRiskScore);
-        // Combined success probability now reflects ALL FIVE risk categories, not just the ML financial baseline
+        // Success probability reflects all five categories, not just the ML baseline.
         double combinedSuccessProbability = RiskScoreAggregator.combinedSuccessProbability(overallRiskScore);
 
         Double feasibilityScore = computeFeasibilityScore(llmData.getAssessmentMetrics());
@@ -124,9 +123,7 @@ public class RiskAssessmentService {
     }
 
     private static boolean isTransientMlFailure(Throwable throwable) {
-        // A cold-starting ML service commonly surfaces as a connection timeout,
-        // a refused connection, or a temporary 502/503 gateway response. Only
-        // these transient conditions are retried; anything else is left alone.
+        // Only transient ML cold-start failures (timeout, refused, 502/503) are retried.
         return throwable instanceof WebClientResponseException.BadGateway
                 || throwable instanceof WebClientResponseException.ServiceUnavailable
                 || throwable instanceof TimeoutException
@@ -353,7 +350,6 @@ public class RiskAssessmentService {
         RiskAssessmentResponseDTO.BudgetAdequacyDTO budgetAdequacy;
 
         if (ml != null) {
-            // Freshly generated response \u2014 use the values built during generation
             riskBreakdown = freshBreakdown != null
                     ? freshBreakdown
                     : RiskAssessmentResponseDTO.RiskBreakdownDTO.builder().build();
@@ -366,7 +362,7 @@ public class RiskAssessmentService {
                     ? freshFinancialSuccessProbability
                     : ml.getSuccessProbability();
         } else {
-            // Cached response \u2014 rebuild everything from the persisted columns
+            // Cached path: generation-time values are unavailable, so rebuild from persisted columns.
             riskBreakdown = fromJson(prediction.getRiskBreakdownJson(), new TypeReference<>() {});
             if (riskBreakdown == null) {
                 riskBreakdown = RiskAssessmentResponseDTO.RiskBreakdownDTO.builder().build();
@@ -374,8 +370,7 @@ public class RiskAssessmentService {
             fillLegacyFallbacks(riskBreakdown, prediction);
             overallRiskScore = prediction.getOverallRiskScore();
             riskLevel = prediction.getRiskLevel();
-            // Legacy rows stored the raw ML financial value in successProbability; recompute
-            // the combined value from overallRiskScore while preserving the raw ML value.
+            // Legacy rows stored the raw ML value in successProbability; recompute from overallRiskScore, keeping the raw value.
             successProbability = prediction.getFinancialSuccessProbability() != null
                     ? prediction.getSuccessProbability()
                     : RiskScoreAggregator.combinedSuccessProbability(overallRiskScore);
@@ -384,8 +379,7 @@ public class RiskAssessmentService {
                     : prediction.getSuccessProbability();
         }
 
-        // Financial risk on this response is the BLENDED score from the risk breakdown; the raw ML-only
-        // number is exposed separately as mlOnlyFinancialRisk, and the LLM's judgment as budgetAdequacy.
+        // Financial risk is the blended breakdown score; the raw ML-only value and LLM judgment are exposed separately.
         financialRiskScore = riskBreakdown != null && riskBreakdown.getFinancialRisk() != null
                 ? riskBreakdown.getFinancialRisk().getScore()
                 : (ml != null ? ml.getOverallRiskScore() : prediction.getOverallRiskScore());
@@ -430,10 +424,7 @@ public class RiskAssessmentService {
                 .build();
     }
 
-    /**
-     * Blends Groq scope-based budget adequacy with the ML baseline (60%/40%);
-     * falls back to the raw ML score when no adequacy was returned.
-     */
+    // Blends Groq scope-based budget adequacy with the ML baseline (60/40); falls back to raw ML when adequacy is missing.
     private double computeBlendedFinancialRisk(MlPredictionResponseDTO ml, LlmRiskResponseDTO llmData) {
         double mlScore = safeDouble(ml.getOverallRiskScore());
         Integer adequacyScore = llmData.getBudgetAdequacy() != null ? llmData.getBudgetAdequacy().getScore() : null;
@@ -513,7 +504,6 @@ public class RiskAssessmentService {
         return category != null && category.getScore() != null ? category.getScore() : 0.0;
     }
 
-    /** Formats amounts in Indian lakh/crore grouping (e.g. 1800000 -> "\u20B918,00,000"); budgets are whole rupees, no decimals. */
     static String formatInr(BigDecimal value) {
         if (value == null) {
             return null;
@@ -540,7 +530,7 @@ public class RiskAssessmentService {
         return (negative ? "-\u20B9" : "\u20B9") + grouped;
     }
 
-    /** Best-effort fill for cached breakdowns persisted before the five-category upgrade. */
+    // Backfills cached breakdowns persisted before the five-category upgrade from legacy score columns.
     private void fillLegacyFallbacks(RiskAssessmentResponseDTO.RiskBreakdownDTO breakdown, Prediction prediction) {
         if (breakdown.getFinancialRisk() == null && prediction.getOverallRiskScore() != null) {
             breakdown.setFinancialRisk(RiskAssessmentResponseDTO.RiskCategoryDTO.builder()
@@ -549,7 +539,7 @@ public class RiskAssessmentService {
                     .source(SOURCE_ML_MODEL)
                     .build());
         }
-        // Legacy rows stored the pure ML value as the financial score \u2014 reuse it as mlOnlyFinancialRisk.
+        // Legacy rows: reuse the stored ML financial score as mlOnlyFinancialRisk for the raw signal.
         if (breakdown.getMlOnlyFinancialRisk() == null && breakdown.getFinancialRisk() != null
                 && breakdown.getFinancialRisk().getScore() != null) {
             breakdown.setMlOnlyFinancialRisk(breakdown.getFinancialRisk().getScore());

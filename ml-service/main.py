@@ -32,11 +32,10 @@ with open("valid_categories.json") as f:
 
 explainer = shap.TreeExplainer(model)
 
-# Fixed INR -> USD conversion rate (documented assumption, not live).
-# The model was trained on USD-denominated Crunchbase funding data.
+# Fixed INR->USD rate; model was trained on USD Crunchbase funding (assumption, not live).
 INR_TO_USD_RATE = 1 / 83.0
 
-# Form Industry dropdown -> Crunchbase category taxonomy; unmapped falls back to "Other".
+# Maps the frontend Industry dropdown onto Crunchbase's taxonomy; unknown values fall back to "Other".
 INDUSTRY_TO_MODEL_CATEGORY = {
     "Technology": "Software",
     "Healthcare": "Health Care",
@@ -47,12 +46,10 @@ INDUSTRY_TO_MODEL_CATEGORY = {
     "Other": "Other",
 }
 
-# Below this USD-equivalent budget we're at the extreme edge of the model's training data;
-# the score stands, but a confidence note replaces a falsely-precise number.
+# Below this USD budget we're past the training data's edge, so a confidence note replaces the number.
 LOW_BUDGET_USD_THRESHOLD = 10_000
 
 
-# Request schema — matches the real submission form.
 class ProjectFeatures(BaseModel):
     budget_inr: float = Field(..., gt=0, description="Project budget in INR")
     industry: str = Field(..., description="Industry/Sector dropdown value")
@@ -62,7 +59,7 @@ class ProjectFeatures(BaseModel):
 class RiskFactor(BaseModel):
     feature: str
     contribution: float
-    direction: str  # "increases_risk" | "increases_success"
+    direction: str
 
 
 class PredictionResponse(BaseModel):

@@ -18,8 +18,7 @@ function ProjectAnalysis({
   const [selected, setSelected] = useState(project || null);
   const [prevProjectId, setPrevProjectId] = useState(project?.projectId ?? null);
 
-  // React-documented "adjust state when a prop changes" pattern (render-phase
-  // update, not an effect): syncs local selection with the parent's project.
+  // Render-phase state update (not an effect) syncing selection when the prop changes.
   if ((project?.projectId ?? null) !== prevProjectId) {
     setPrevProjectId(project?.projectId ?? null);
     setSelected(project || null);

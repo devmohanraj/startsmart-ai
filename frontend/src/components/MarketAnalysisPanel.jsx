@@ -176,8 +176,7 @@ function MarketAnalysisPanel({
   const [isPolling, setIsPolling] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Refs (not state) keep the guards stable across StrictMode's double-invoke
-  // closure timing, preventing a second concurrent network call.
+  // Refs survive StrictMode's double-invoke; state would reset between invocations.
   const fetchInProgressRef = useRef(false);
   const hasFetchedRef = useRef(false);
   const lastProjectIdRef = useRef(null);
@@ -194,20 +193,19 @@ function MarketAnalysisPanel({
       hasFetchedRef.current = false;
     }
 
-    // ONE initial fetch cycle per project mount: blocks StrictMode
-    // double-invokes, never the internal GET-404-then-POST (same logical cycle).
+    // One fetch cycle per project mount; blocks StrictMode double-invokes.
     if (fetchInProgressRef.current || hasFetchedRef.current) {
       return;
     }
     fetchInProgressRef.current = true;
 
-    // Ref-keyed: in-flight cycle survives StrictMode teardown+re-invoke; stale ones can't clobber state.
+    // Ref-keyed cycles survive StrictMode teardown+re-invoke; stale ones can't clobber state.
     const myProjectId = projectId;
     const isCurrentCycle = () => lastProjectIdRef.current === myProjectId;
 
     const runFetchCycle = async () => {
       try {
-        // ONE initial GET; a 404 means no analysis exists yet, so generate it.
+        // GET first; a 404 means none exists yet, so the same cycle falls back to a POST.
         const result = await marketAnalysisApi.get(myProjectId);
         if (result.ok) {
           if (isCurrentCycle()) {
@@ -234,7 +232,7 @@ function MarketAnalysisPanel({
         setLoading(false);
         if (onAnalysisComplete) onAnalysisComplete();
       } finally {
-        // Refs released only after the ENTIRE GET(+POST fallback) cycle resolves.
+        // Guards release only after the full GET(+POST fallback) cycle settles.
         fetchInProgressRef.current = false;
         hasFetchedRef.current = true;
       }

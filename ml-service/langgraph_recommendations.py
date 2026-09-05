@@ -20,16 +20,15 @@ PHASES = ("Immediate", "Next 30 Days", "Next Quarter")
 
 
 class RecommendationState(TypedDict):
-    # Inputs (from Spring Boot)
-    top_categories: list  # [{category, score, reason}, ...]
-    project_context: dict  # {budget, industry, target_market, description}
-    swot: dict  # {strengths, weaknesses, opportunities, threats}
-    # Outputs (populated by the nodes)
-    raw_recommendations: list  # Node 1 -> {riskCategory, recommendation, mitigation}
-    final_roadmap: list  # Node 2 -> same fields plus phase
+    # Inputs from Spring Boot: top_categories=[{category, score, reason}], project_context, swot.
+    top_categories: list
+    project_context: dict
+    swot: dict
+    # analyze fills the flat list; sequence appends phase for the final roadmap.
+    raw_recommendations: list
+    final_roadmap: list
 
 
-# Groq plumbing: one retry on failure, then a node-named error from the wrappers.
 def _build_llm() -> ChatGroq:
     api_key = GROQ_API_KEY or os.environ.get("GROQ_API_KEY")
     if not api_key:
@@ -51,7 +50,7 @@ def _call_groq(prompt: str) -> str:
             response = llm.invoke([HumanMessage(content=prompt)])
             text = getattr(response, "content", None)
 
-            # Defensive: ChatGroq normally returns a plain string; handle list-of-text-blocks too.
+            # ChatGroq can return a list of content blocks instead of a plain string; join them.
             if isinstance(text, list):
                 extracted = []
                 for block in text:
@@ -64,12 +63,12 @@ def _call_groq(prompt: str) -> str:
             if text is None or (isinstance(text, str) and not text.strip()):
                 raise ValueError("Groq returned an empty response")
             return text
-        except Exception as exc:  # noqa: BLE001 — must surface node-level error
+        except Exception as exc:  # noqa: BLE001
             last_error = exc
     raise RuntimeError(f"Groq call failed after 1 retry: {last_error}")
 
 
-# JSON parsing helpers — mirror of LlmService.stripMarkdown on the Java side.
+# Mirrors LlmService.stripMarkdown on the Java side so both stacks normalize LLM output.
 def _strip_markdown(text: str) -> str:
     text = (text or "").strip()
     had_fence = False
@@ -85,7 +84,7 @@ def _strip_markdown(text: str) -> str:
 
 
 def _parse_json_array(text: str) -> list:
-    # Raise sits outside the except: no implicit __context__, so LangGraph keeps the message intact.
+    # Raising outside the except keeps the caught JSONDecodeError out of LangGraph's message.
     error = None
     try:
         parsed = json.loads(text)
@@ -103,7 +102,7 @@ def _parse_json_array(text: str) -> list:
     return parsed
 
 
-# Prompt text helpers — mirror Java-side RecommendationService/LlmService conventions.
+# Mirrors Java-side RecommendationService/LlmService label and list-formatting conventions.
 def _capitalize(value: str) -> str:
     value = (value or "").strip()
     return value[:1].upper() + value[1:] if value else value
@@ -188,10 +187,10 @@ def analyze_and_recommend(state: RecommendationState) -> dict:
         raw = _call_groq(prompt)
         cleaned = _strip_markdown(raw)
         recommendations = _parse_json_array(cleaned)
-    except Exception as exc:  # noqa: BLE001 — must surface node-level error
+    except Exception as exc:  # noqa: BLE001
         error = exc
     if error is not None:
-        # Raised outside the except: no implicit __context__, so LangGraph surfaces the node-named message.
+        # Raise outside the except so LangGraph surfaces the clean node-named message.
         raise RuntimeError(f"Node 1 (analyze) failed: {error}")
     return {"raw_recommendations": recommendations}
 
@@ -230,10 +229,10 @@ def sequence_into_roadmap(state: RecommendationState) -> dict:
         raw = _call_groq(prompt)
         cleaned = _strip_markdown(raw)
         roadmap = _parse_json_array(cleaned)
-    except Exception as exc:  # noqa: BLE001 — must surface node-level error
+    except Exception as exc:  # noqa: BLE001
         error = exc
     if error is not None:
-        # Raised outside the except: no implicit __context__, so LangGraph surfaces the node-named message.
+        # Raise outside the except so LangGraph surfaces the clean node-named message.
         raise RuntimeError(f"Node 2 (sequence) failed: {error}")
     return {"final_roadmap": roadmap}
 

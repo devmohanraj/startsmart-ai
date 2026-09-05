@@ -111,8 +111,7 @@ public class RiskAssessmentResponseDTO {
         @JsonProperty("budget_adequacy")
         private BudgetAdequacyDTO budgetAdequacy;
 
-        // Legacy fields: populated only when reading cached JSON written by an older app version;
-        // never written on fresh generation.
+        // Legacy compat: populated only from cached JSON written by an older app version.
         @JsonProperty("technical_risk_score")
         private Double technicalRiskScore;
 

@@ -11,7 +11,7 @@ def load_and_prepare_data(csv_path: str = "data.csv", test_size: float = 0.2, ra
     if missing:
         raise ValueError(f"Dataset is missing required columns: {missing}")
 
-    # Target = resolved outcomes only (acquired/ipo/closed); 'operating' is not a resolved outcome.
+    # Only resolved outcomes get a label: acquired/ipo=1, closed=0; operating has no final outcome.
     df_resolved = df[df["status"].isin(["acquired", "closed", "ipo"])].copy()
     df_resolved["success"] = df_resolved["status"].apply(lambda s: 0 if s == "closed" else 1)
 
@@ -22,8 +22,7 @@ def load_and_prepare_data(csv_path: str = "data.csv", test_size: float = 0.2, ra
         df_resolved["funding_total_usd"].median()
     )
 
-    # log1p compresses the heavy right-skew of dollar amounts (a few huge outliers dominate raw
-    # values) so budget differences act proportionally; log1p(0)=0 handles zero funding safely.
+    # log1p compresses the heavy right-skew of funding amounts and handles zeros safely.
     df_resolved["funding_total_usd_log"] = np.log1p(df_resolved["funding_total_usd"])
 
     df_resolved["primary_category"] = (
@@ -37,7 +36,7 @@ def load_and_prepare_data(csv_path: str = "data.csv", test_size: float = 0.2, ra
     df_resolved["country_code"] = df_resolved["country_code"].fillna("Unknown")
     df_resolved["is_india"] = (df_resolved["country_code"] == "IND").astype(int)
 
-    # Upweight India rows 3x via sample_weight.
+    # India rows get 3x weight so the model focuses on the intended local market.
     df_resolved["sample_weight"] = df_resolved["is_india"].apply(lambda x: 3 if x == 1 else 1)
 
     feature_cols = ["funding_total_usd_log", "primary_category", "is_india"]

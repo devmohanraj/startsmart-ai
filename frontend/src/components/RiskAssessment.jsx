@@ -54,7 +54,7 @@ function successMeta(sp) {
   return { label: "Low", bar: "bg-red-500", text: "text-red-400", chip: "bg-red-500/10 text-red-400" };
 }
 
-// Raw ML feature names + SHAP contributions map to user-friendly labels/explanations — never shown raw to users.
+// ML feature identifiers map to friendly labels; never shown raw to users.
 const KNOWN_FEATURE_LABELS = {
   funding_total_usd_log: "Funding Level Compared to Historical Startups",
   is_india: "India Market Context",
@@ -371,15 +371,13 @@ function RiskAssessment({
   const [wakeUpSeconds, setWakeUpSeconds] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Refs (not state) keep the guards stable across StrictMode's double-invoke
-  // closure timing, preventing a second concurrent network call.
+  // Refs survive StrictMode's double-invoke; state would reset between invocations.
   const fetchInProgressRef = useRef(false);
   const hasFetchedRef = useRef(false);
   const lastFetchKeyRef = useRef(null);
   const wakeUpStartedAtRef = useRef(null);
 
-  // Popup only shows while the ML + Groq generation (POST) is running —
-  // never while merely fetching an already-generated assessment from the DB (GET).
+  // Popup shows only during POST generation, never when GETting cached data.
   const showPopup = isGenerating;
 
   const fetchAssessment = useCallback(
@@ -398,15 +396,13 @@ function RiskAssessment({
       hasFetchedRef.current = false;
     }
 
-    // ONE init (GET-then-POST) per mount/retry: blocks StrictMode double-invokes,
-    // never the internal GET-404-then-POST fallback (same logical cycle).
+    // One GET-then-POST cycle per mount/retry; blocks StrictMode double-invokes.
     if (fetchInProgressRef.current || hasFetchedRef.current) {
       return;
     }
     fetchInProgressRef.current = true;
 
-    // Ref-keyed by projectId+reloadKey: the in-flight cycle survives StrictMode
-    // teardown+re-invoke (Retry keeps working); retired keys can't clobber state.
+    // Ref-keyed cycles survive StrictMode teardown+re-invoke; retired keys can't clobber state.
     const myFetchKey = fetchKey;
     const isCurrentCycle = () => lastFetchKeyRef.current === myFetchKey;
 
@@ -448,7 +444,7 @@ function RiskAssessment({
         setIsWakingUp(false);
         onAssessmentLoaded?.(projectId, result);
       } finally {
-        // Refs released only after the ENTIRE GET(+POST fallback) cycle resolves.
+        // Guards release only after the full GET(+POST fallback) cycle settles.
         fetchInProgressRef.current = false;
         hasFetchedRef.current = true;
       }
@@ -461,9 +457,7 @@ function RiskAssessment({
     if (!projectId || !error || !isPolling) return;
     if (!isWakingUp && !/Request failed with status (500|502|503)/.test(error)) return;
 
-    // While the risk engine is waking up the assessment was never persisted,
-    // so a plain GET can never succeed. Re-run the full GET-then-POST cycle on
-    // an interval until the engine comes back and returns data.
+    // Waking engine never persisted the assessment; retry full GET-then-POST until it lands.
     if (isWakingUp) {
       const interval = setInterval(() => {
         if (fetchInProgressRef.current) return;
@@ -485,10 +479,7 @@ function RiskAssessment({
     return () => clearInterval(interval);
   }, [projectId, error, isPolling, isWakingUp, fetchAssessment]);
 
-  // Runs 1s ticks while the wake-up state is active, computing elapsed time from
-  // a start timestamp held in a ref. The ref is cleared on exit and re-seeded on
-  // re-entry, so the counter self-corrects without any synchronous setState in
-  // the effect body.
+  // 1s ticks compute elapsed time from a ref timestamp; cleared on exit, re-seeded on re-entry.
   useEffect(() => {
     if (!isWakingUp) {
       wakeUpStartedAtRef.current = null;
@@ -504,9 +495,7 @@ function RiskAssessment({
       }
       setWakeUpSeconds(Math.floor((Date.now() - wakeUpStartedAtRef.current) / 1000));
     };
-    // Fire the tick once after the current synchronous work so a fresh cycle
-    // renders 0:00 on its first frame instead of carrying over the previous
-    // cycle's stale elapsed value.
+    // First tick is deferred a frame so a fresh cycle renders 0:00, not a stale value.
     const firstTick = setTimeout(tick, 0);
     const interval = setInterval(tick, 1000);
     return () => {
@@ -926,7 +915,7 @@ function RiskAssessment({
             </Card>
           </div>
 
-          {/* Mounts only once assessmentReady so RecommendationsPanel's GET-then-POST never fires early */}
+          {/* Mount only once the assessment renders, so its GET-then-POST cycle doesn't fire early. */}
           {assessmentReady && (
             <RecommendationsPanel
               key={projectId}

@@ -120,7 +120,7 @@ function RecommendationsPanel({ projectId, riskData, cachedData, onCache }) {
               if (cancelled) return;
               setError(postErr.message);
               if (/Request failed with status (500|502|503)/.test(postErr.message)) {
-                // Server is retrying the Groq generation — poll until it lands
+                // Backend retries Groq generation internally; poll GET until that generation lands.
                 pollInterval = setInterval(() => {
                   fetchRecommendations(projectId, "GET")
                     .then((json) => {

@@ -55,7 +55,6 @@ public class RecommendationService {
     public List<RecommendationResponseDTO> generateRecommendations(Long projectId) {
         Project project = getProjectOrThrow(projectId);
 
-        // The engine depends on an existing risk assessment — never regenerate it here.
         Prediction prediction = predictionRepository.findByProjectProjectId(projectId)
                 .orElseThrow(() -> new IllegalStateException(noAssessmentMessage(projectId)));
         SwotAnalysis swot = swotAnalysisRepository.findByProjectProjectId(projectId)
@@ -66,8 +65,6 @@ public class RecommendationService {
 
         List<RecommendationRanker.RankedCategory> top = RecommendationRanker.selectTopThree(breakdown);
 
-        // The 2-node LangGraph agent (analyze -> sequence, inside the Python
-        // ml-service) covers all top categories and phases them in one flow.
         List<LlmRecommendationDTO> results = langGraphClient.generateRecommendations(top, project, swotData);
 
         Map<String, String> priorityByCategory = new HashMap<>();

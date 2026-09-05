@@ -85,7 +85,7 @@ function App() {
     try {
       localStorage.setItem("startsmart_risk_assessments", JSON.stringify(riskAssessmentCache));
     } catch {
-      // ignore quota / serialization errors
+      // Best-effort persistence; quota/serialization failures are dropped.
     }
   }, [riskAssessmentCache]);
 
@@ -93,7 +93,7 @@ function App() {
     try {
       localStorage.setItem("startsmart_market_analyses", JSON.stringify(analysisCache));
     } catch {
-      // ignore quota / serialization errors
+      // Best-effort persistence; quota/serialization failures are dropped.
     }
   }, [analysisCache]);
 
@@ -101,7 +101,7 @@ function App() {
     try {
       localStorage.setItem("startsmart_recommendations", JSON.stringify(recommendationCache));
     } catch {
-      // ignore quota / serialization errors
+      // Best-effort persistence; quota/serialization failures are dropped.
     }
   }, [recommendationCache]);
 
@@ -114,7 +114,7 @@ function App() {
       if (prev.some((p) => p.projectId === project.projectId)) return prev;
       return [project, ...prev];
     });
-    // A new project makes the cached dashboard summary stale — drop it.
+    // New project changes dashboard totals; drop the cached summary.
     invalidateDashboardCache(user?.userId);
     fetchUserProjects(user?.userId);
   };
@@ -129,8 +129,7 @@ function App() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [location.pathname, submittedProject]);
 
-  // Route-derived state: deep links / browser back-forward must land in the
-  // exact same UI state the old tab handlers produced when switching views.
+  // Route-derived state so deep links and back/forward land in the same UI state.
   const effectiveSubmittedProject =
     activeTab === 'Project Input' ? null : submittedProject;
   const riskIndicatorVisible =
@@ -175,7 +174,7 @@ function App() {
     try {
       localStorage.setItem("startsmart_user", JSON.stringify(userData));
     } catch {
-      // ignore quota / serialization errors
+      // Best-effort persistence; quota/serialization failures are dropped.
     }
     setAuthModalOpen(false);
     await fetchUserProjects(userData.userId);
@@ -186,7 +185,7 @@ function App() {
     try {
       localStorage.removeItem("startsmart_user");
     } catch {
-      // ignore storage errors
+      // Best-effort persistence; quota/storage failures are dropped.
     }
     setUserProjects([]);
     setSubmittedProject(null);
@@ -218,7 +217,7 @@ function App() {
     }
   };
 
-  // Restore persisted session once on mount: re-fetch projects after refresh.
+  // Session restored from localStorage; refetch projects once on mount.
   useEffect(() => {
     if (user?.userId) {
       fetchUserProjects(user.userId);
@@ -232,7 +231,7 @@ function App() {
   };
 
   const handleSelectProjectForAssessment = (project) => {
-    // Resolve the full project object so Risk Assessment receives every field.
+    // Resolve the full record (not the partial picker entry) for the assessment view.
     const full = userProjects.find((p) => p.projectId === project.projectId)
       || { ...project, projectType: project.industry };
     setSubmittedProject(full);
@@ -245,7 +244,7 @@ function App() {
     try {
       await projectsApi.remove(projectId);
       setUserProjects((prev) => prev.filter((p) => p.projectId !== projectId));
-      // Deletion also changes totals — drop the cached dashboard snapshot.
+      // Deletion changes dashboard totals; drop the cached summary.
       invalidateDashboardCache(user?.userId);
       if (submittedProject?.projectId === projectId) {
         handleReset();

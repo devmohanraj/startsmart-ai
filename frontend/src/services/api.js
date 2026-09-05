@@ -3,21 +3,12 @@ import axios from "axios";
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   headers: { "Content-Type": "application/json" },
-  // Read timeout for the base Spring Boot API. A Render free-tier backend can
-  // be cold on the first call after idle, so individual attempts get this
-  // bound while the retry interceptor below rides over the boot.
+  // Cold Render backend needs a bounded per-attempt timeout while the interceptor retries.
   timeout: 30000,
 });
 
-// --- Backend cold-start retry -------------------------------------------------
-// A Render free-tier backend can be cold on the first request after idle. Cold
-// start surfaces either as a network-level failure (no HTTP response at all:
-// connection refused, dropped connection, or request timeout) or as a 502/503
-// from Render's edge proxy while the container is still booting. Both are real
-// cold-start signals and are retried here with exponential backoff, separate
-// from the ML-service wake-up handling that lives in RiskAssessment.jsx.
-// Anything else that returns a response (any other 4xx/5xx) is a real error.
-const MAX_RETRIES = 2; // 1 initial attempt + 2 retries = 3 total
+// Retry cold-start failures (no response, or proxy 502/503) with backoff; other responses are real errors.
+const MAX_RETRIES = 2;
 const BASE_DELAY_MS = 2000;
 const RETRYABLE_STATUSES = new Set([502, 503]);
 
@@ -36,14 +27,10 @@ export function onConnectingChange(listener) {
 function isRetryableFailure(error) {
   if (!axios.isAxiosError(error) || !error.config) return false;
 
-  // An intentionally cancelled call must never be retried.
+  // A cancelled request is a deliberate caller decision and must not be replayed.
   if (error.code === "ERR_CANCELED") return false;
 
-  // Connection-level failure (no HTTP response) is a cold-start signal.
-  if (!error.response) return true;
-
-  // A proxy 502/503 while the container boots is also a cold-start signal.
-  return RETRYABLE_STATUSES.has(error.response.status);
+  return !error.response || RETRYABLE_STATUSES.has(error.response.status);
 }
 
 api.interceptors.response.use(
@@ -61,7 +48,7 @@ api.interceptors.response.use(
 
     try {
       config.__retryCount = retryCount + 1;
-      const delay = BASE_DELAY_MS * 2 ** retryCount; // 2s, 4s
+      const delay = BASE_DELAY_MS * 2 ** retryCount;
       await new Promise((resolve) => setTimeout(resolve, delay));
       return await api.request(config);
     } finally {
@@ -158,8 +145,7 @@ export const marketAnalysisApi = {
     request({
       method: "post",
       url: `/api/projects/${projectId}/market-analysis`,
-      // Generation waits on Groq server-side; keep the client timeout off so
-      // the slow-but-legitimate call is not cut off by the base API timeout.
+      // Generation waits on Groq server-side, so disable the base timeout for it.
       timeout: 0,
     }),
 
@@ -184,8 +170,7 @@ async function fetchOrGenerate(path, method) {
     const { data } = await api.request({
       method,
       url: path,
-      // Only the POST (generation) can wait a long time on ML/Groq server-side.
-      // Keep its client timeout off; GET (cached fetch) stays bounded.
+      // POST generation waits on ML/Groq; GET of cached data stays bounded by the timeout.
       timeout: method === "POST" ? 0 : undefined,
     });
     return data;

@@ -11,7 +11,6 @@ public final class RecommendationRanker {
     private RecommendationRanker() {
     }
 
-    /** Canonical category order — used to break score ties deterministically. */
     public static final List<String> CATEGORY_ORDER = List.of(
             "financial", "market", "technical", "operational", "execution");
 

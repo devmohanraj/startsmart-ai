@@ -29,7 +29,7 @@ def main():
     print("=" * 60)
     print(mean_abs_shap.to_string(index=False))
 
-    # Single-prediction example mirroring what /predict does live.
+    # One test row through the same predict_proba + SHAP path the /predict endpoint uses.
     sample_idx = 0
     sample_shap = shap_values[sample_idx]
     sample_features = X_test.iloc[sample_idx]

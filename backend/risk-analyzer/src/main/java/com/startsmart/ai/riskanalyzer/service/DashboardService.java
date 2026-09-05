@@ -72,7 +72,6 @@ public class DashboardService {
                 .build();
     }
 
-    // Portfolio aggregation covers assessed projects only
     private DashboardSummaryDTO buildAggregate(
             int totalProjects, List<ProjectSummaryDTO> summaries, Map<Long, Prediction> predictionsByProjectId) {
         double averageRiskScore = round1(sumOf(summaries, ProjectSummaryDTO::getRiskScore) / summaries.size());
@@ -147,7 +146,6 @@ public class DashboardService {
                 .count();
     }
 
-    // Top risk driver: the category that most often scores highest within a project's breakdown
     private record TopDriver(String category, Double percentage) {
     }
 

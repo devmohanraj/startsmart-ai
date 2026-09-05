@@ -18,7 +18,7 @@ def main():
 
     joblib.dump(xgb_model, "risk_model.pkl")
 
-    # Save exact column order — critical for correct inference encoding
+    # Persist exact training column order so inference reindexing stays aligned on retraining.
     model_columns = X_train.columns.tolist()
     with open("model_columns.json", "w") as f:
         json.dump(model_columns, f, indent=2)

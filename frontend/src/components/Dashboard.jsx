@@ -479,8 +479,7 @@ function Dashboard({
     };
   }, [isLoggedIn, userId, reloadKey]);
 
-  // Cache-first paint: fall back to the persisted snapshot until a
-  // (re)validation fetch lands.
+  // Cache-first paint; render the persisted snapshot until revalidation lands.
   const cachedSummary = useMemo(() => {
     if (!isLoggedIn || !userId) return null;
     return readDashboardCache(userId)?.data ?? null;

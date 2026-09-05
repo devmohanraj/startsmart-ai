@@ -81,7 +81,7 @@ public class ProjectService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + projectId));
         
-        // Delete related records first to avoid foreign key constraint violation
+        // Delete child rows first to avoid foreign-key constraint violations.
         predictionRepository.deleteByProjectProjectId(projectId);
         swotAnalysisRepository.deleteByProjectProjectId(projectId);
         recommendationRepository.deleteByProjectProjectId(projectId);

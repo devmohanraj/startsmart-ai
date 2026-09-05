@@ -1,5 +1,4 @@
-// Per-user dashboard summary cache (localStorage): fresh snapshots skip the
-// network; older ones render instantly and revalidate in the background.
+// localStorage summary cache; fresh snapshots skip the network, stale ones render then revalidate.
 export const DASHBOARD_CACHE_TTL = 60 * 1000;
 
 export function dashboardCacheKey(userId) {
@@ -32,7 +31,7 @@ export function writeDashboardCache(userId, data) {
       JSON.stringify({ data, timestamp: Date.now() }),
     );
   } catch {
-    // ignore quota / serialization errors
+    // Best-effort persistence; quota/serialization failures are dropped.
   }
 }
 
@@ -41,6 +40,6 @@ export function invalidateDashboardCache(userId) {
   try {
     localStorage.removeItem(dashboardCacheKey(userId));
   } catch {
-    // ignore storage errors
+    // Best-effort invalidation; stale data is corrected by the TTL on next read.
   }
 }

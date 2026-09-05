@@ -107,13 +107,6 @@ public class ReportService {
         return path.toFile();
     }
 
-    /**
-     * Portfolio-level report: compiles every assessed project for a given user into
-     * a single PDF. The document is written to a ByteArrayOutputStream and returned
-     * directly — nothing is persisted to the reports table because there is no
-     * single
-     * project to associate with.
-     */
     @Transactional(readOnly = true)
     public byte[] generatePortfolioReport(Long userId) {
         List<Project> allProjects = projectRepository.findByUserUserIdOrderByCreatedAtDesc(userId);

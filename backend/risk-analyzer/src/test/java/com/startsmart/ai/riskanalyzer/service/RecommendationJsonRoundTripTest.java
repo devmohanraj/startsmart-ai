@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RecommendationJsonRoundTripTest {
 
-    // Spring Boot auto-registers the JavaTimeModule on its ObjectMapper; mirror that here
+    // Mirror Spring Boot's auto-registered JavaTimeModule; without it LocalDateTime serializes as a numeric array.
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -74,7 +74,7 @@ class RecommendationJsonRoundTripTest {
                 [{"recommendation": "R1", "mitigation": "M1", "phase": "Immediate"}]
                 ```
                 """;
-        // stripMarkdown is package-private; replicate the exact same cleaning the service applies
+        // Replicate the service's fence-stripping by hand since stripMarkdown is package-private.
         String cleaned = json.trim();
         if (cleaned.startsWith("```json")) {
             cleaned = cleaned.substring(7);
