@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.util.retry.Retry;
 
@@ -100,31 +101,36 @@ public class RiskAssessmentService {
                 "is_india", 1
         );
 
-        MlPredictionResponseDTO response = webClientBuilder.build().post()
-                .uri(mlServiceUrl + "/predict")
-                .header("Content-Type", "application/json")
-                .bodyValue(requestBody)
-                .retrieve()
-                .bodyToMono(MlPredictionResponseDTO.class)
-                .timeout(Duration.ofSeconds(90))
-                .retryWhen(Retry.backoff(3, Duration.ofSeconds(2))
-                        .maxBackoff(Duration.ofSeconds(16))
-                        .filter(RiskAssessmentService::isTransientMlFailure))
-                .onErrorMap(RiskAssessmentService::isTransientMlFailure,
-                        t -> new MlEngineUnavailableException(
-                                "The risk engine is temporarily unavailable and could not be reached. "
-                                        + "It may still be starting up — please try again in a moment.", t))
-                .block();
+        try {
+            MlPredictionResponseDTO response = webClientBuilder.build().post()
+                    .uri(mlServiceUrl + "/predict")
+                    .header("Content-Type", "application/json")
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(MlPredictionResponseDTO.class)
+                    .timeout(Duration.ofSeconds(90))
+                    .retryWhen(Retry.backoff(3, Duration.ofSeconds(2))
+                            .maxBackoff(Duration.ofSeconds(16))
+                            .filter(RiskAssessmentService::isTransientMlFailure))
+                    .block();
 
-        if (response == null) {
-            throw new LlmService.LlmException("ML service returned null response");
+            if (response == null) {
+                throw new RuntimeException("ML service returned null response");
+            }
+            return response;
+        } catch (MlEngineUnavailableException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new MlEngineUnavailableException(
+                    "The risk engine is temporarily unavailable and could not be reached. "
+                            + "It may still be starting up — please try again in a moment.", e);
         }
-        return response;
     }
 
     private static boolean isTransientMlFailure(Throwable throwable) {
-        // Only transient ML cold-start failures (timeout, refused, 502/503) are retried.
-        return throwable instanceof WebClientResponseException.BadGateway
+        // Only transient ML cold-start failures (wrapped connection timeout, refused, timeout, 502/503) are retried.
+        return throwable instanceof WebClientRequestException
+                || throwable instanceof WebClientResponseException.BadGateway
                 || throwable instanceof WebClientResponseException.ServiceUnavailable
                 || throwable instanceof TimeoutException
                 || throwable instanceof ConnectException;

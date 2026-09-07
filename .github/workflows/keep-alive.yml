@@ -10,7 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping ML service
-        run: curl -sf https://startsmart-ai-ml-service.onrender.com/|| true
-
+        run: |
+          code=$(curl -o /dev/null -s -w "%{http_code}" --max-time 120 https://startsmart-ai-ml-service.onrender.com/ || true)
+          echo "ML service HTTP $code"
+          [ "$code" = "200" ] || exit 1
       - name: Ping Spring Boot backend
-        run: curl -sf https://startsmartai-backend.onrender.com/actuator/health || true
+        run: |
+          code=$(curl -o /dev/null -s -w "%{http_code}" --max-time 120 https://startsmartai-backend.onrender.com/actuator/health || true)
+          echo "Backend HTTP $code"
+          [ "$code" = "200" ] || exit 1

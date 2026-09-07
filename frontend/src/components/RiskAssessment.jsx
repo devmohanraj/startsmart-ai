@@ -30,6 +30,15 @@ function severityOf(score) {
   return "low";
 }
 
+function isMlUnavailableError(err) {
+  if (!err?.message) return false;
+  return (
+    /temporarily unavailable/i.test(err.message) ||
+    /Request failed with status (500|502|503)/.test(err.message) ||
+    /(Network Error|ECONNABORTED|timeout)/i.test(err.message)
+  );
+}
+
 function formatElapsed(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -424,14 +433,11 @@ function RiskAssessment({
             result = await fetchAssessment(projectId, "POST");
           } catch (postErr) {
             if (!isCurrentCycle()) return;
-            const wakeUp = typeof postErr?.message === "string"
-              && postErr.message.toLowerCase().includes("temporarily unavailable");
+            const wakeUp = isMlUnavailableError(postErr);
             setError(postErr.message);
             setLoading(false);
             setIsGenerating(false);
-            if (wakeUp || /Request failed with status (500|502|503)/.test(postErr.message)) {
-              setIsPolling(true);
-            }
+            setIsPolling(wakeUp);
             setIsWakingUp(wakeUp);
             return;
           }
