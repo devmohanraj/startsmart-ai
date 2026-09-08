@@ -11,11 +11,21 @@ jobs:
     steps:
       - name: Ping ML service
         run: |
-          code=$(curl -o /dev/null -s -w "%{http_code}" --max-time 120 https://startsmart-ai-ml-service.onrender.com/ || true)
-          echo "ML service HTTP $code"
-          [ "$code" = "200" ] || exit 1
+          for i in 1 2 3; do
+            code=$(curl -o /dev/null -s -w "%{http_code}" --max-time 180 https://startsmart-ai-ml-service.onrender.com/ || true)
+            echo "ML service attempt $i: HTTP $code"
+            [ -n "$code" ] && break
+            sleep $((i * 10))
+          done
+          # Ping itself wakes the service; 200/404/502/503 all mean the request reached Render
+          [ -n "$code" ] || exit 1
+
       - name: Ping Spring Boot backend
         run: |
-          code=$(curl -o /dev/null -s -w "%{http_code}" --max-time 120 https://startsmartai-backend.onrender.com/actuator/health || true)
-          echo "Backend HTTP $code"
-          [ "$code" = "200" ] || exit 1
+          for i in 1 2 3; do
+            code=$(curl -o /dev/null -s -w "%{http_code}" --max-time 180 https://startsmartai-backend.onrender.com/actuator/health || true)
+            echo "Backend attempt $i: HTTP $code"
+            [ -n "$code" ] && break
+            sleep $((i * 10))
+          done
+          [ -n "$code" ] || exit 1

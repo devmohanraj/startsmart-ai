@@ -39,12 +39,6 @@ function isMlUnavailableError(err) {
   );
 }
 
-function formatElapsed(totalSeconds) {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
 const RISK_THEME = {
   low:    { ring: "#10b981", text: "text-emerald-400", badge: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20", bar: "bg-emerald-500", dot: "bg-emerald-500" },
   medium: { ring: "#f59e0b", text: "text-amber-400",   badge: "bg-amber-500/10 text-amber-400 border border-amber-500/20",   bar: "bg-amber-500",   dot: "bg-amber-500" },
@@ -377,14 +371,12 @@ function RiskAssessment({
   const [isPolling, setIsPolling] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isWakingUp, setIsWakingUp] = useState(false);
-  const [wakeUpSeconds, setWakeUpSeconds] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Refs survive StrictMode's double-invoke; state would reset between invocations.
   const fetchInProgressRef = useRef(false);
   const hasFetchedRef = useRef(false);
   const lastFetchKeyRef = useRef(null);
-  const wakeUpStartedAtRef = useRef(null);
 
   // Popup shows only during POST generation, never when GETting cached data.
   const showPopup = isGenerating;
@@ -485,38 +477,12 @@ function RiskAssessment({
     return () => clearInterval(interval);
   }, [projectId, error, isPolling, isWakingUp, fetchAssessment]);
 
-  // 1s ticks compute elapsed time from a ref timestamp; cleared on exit, re-seeded on re-entry.
-  useEffect(() => {
-    if (!isWakingUp) {
-      wakeUpStartedAtRef.current = null;
-      return undefined;
-    }
-    if (wakeUpStartedAtRef.current == null) {
-      wakeUpStartedAtRef.current = Date.now();
-    }
-    const tick = () => {
-      if (wakeUpStartedAtRef.current == null) {
-        setWakeUpSeconds(0);
-        return;
-      }
-      setWakeUpSeconds(Math.floor((Date.now() - wakeUpStartedAtRef.current) / 1000));
-    };
-    // First tick is deferred a frame so a fresh cycle renders 0:00, not a stale value.
-    const firstTick = setTimeout(tick, 0);
-    const interval = setInterval(tick, 1000);
-    return () => {
-      clearTimeout(firstTick);
-      clearInterval(interval);
-    };
-  }, [isWakingUp]);
-
   const retry = () => {
     if (isGenerating) return;
     if (riskAssessmentCache[projectId]) return;
     setIsGenerating(true);
     setIsPolling(false);
     setIsWakingUp(false);
-    setWakeUpSeconds(0);
     setError("");
     setReloadKey((k) => k + 1);
   };
@@ -589,7 +555,6 @@ function RiskAssessment({
             setError("");
             setIsPolling(false);
             setIsWakingUp(false);
-            setWakeUpSeconds(0);
             if (onSelectProject) onSelectProject(picked);
           }}
         />
@@ -641,44 +606,26 @@ function RiskAssessment({
     return (
       <div className="min-h-screen flex justify-center px-6 py-16">
         <div className="w-full max-w-md text-center">
-          {isWakingUp ? (
-            <>
-              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto mb-5">
-                <svg className="w-6 h-6 animate-spin" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              </div>
-              <h2 className="text-lg font-bold text-white mb-2">Preparing your risk assessment</h2>
-              <p className="text-sm text-gray-300 mb-2">
-                Waking up the risk engine — this can take a few minutes on the first request.{" "}
-                <span className="text-indigo-300">(Elapsed: {formatElapsed(wakeUpSeconds)})</span>
-              </p>
-            </>
-          ) : (
-            <>
-              <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center mx-auto mb-5">
-                <AlertIcon />
-              </div>
-              <h2 className="text-lg font-bold text-white mb-2">Could not generate the risk assessment</h2>
-              <p className="text-sm text-gray-400 mb-2">{error}</p>
-              {isPolling && (
-                <p className="text-[13px] font-medium text-indigo-400 mb-3 flex items-center justify-center gap-2">
-                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Waiting for the analysis service...
-                </p>
-              )}
-              <button
-                onClick={retry}
-                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer"
-              >
-                {isPolling ? "Retry now" : "Try again"}
-              </button>
-            </>
+          <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center mx-auto mb-5">
+            <AlertIcon />
+          </div>
+          <h2 className="text-lg font-bold text-white mb-2">Could not generate the risk assessment</h2>
+          <p className="text-sm text-gray-400 mb-2">{error}</p>
+          {isPolling && (
+            <p className="text-[13px] font-medium text-indigo-400 mb-3 flex items-center justify-center gap-2">
+              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Waiting for the analysis service...
+            </p>
           )}
+          <button
+            onClick={retry}
+            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer"
+          >
+            {isPolling ? "Retry now" : "Try again"}
+          </button>
         </div>
       </div>
     );
