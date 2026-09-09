@@ -108,9 +108,8 @@ public class RiskAssessmentService {
                     .bodyValue(requestBody)
                     .retrieve()
                     .bodyToMono(MlPredictionResponseDTO.class)
-                    .timeout(Duration.ofSeconds(90))
-                    .retryWhen(Retry.backoff(3, Duration.ofSeconds(2))
-                            .maxBackoff(Duration.ofSeconds(16))
+                    .timeout(Duration.ofSeconds(3))
+                    .retryWhen(Retry.backoff(1, Duration.ofSeconds(2))
                             .filter(RiskAssessmentService::isTransientMlFailure))
                     .block();
 

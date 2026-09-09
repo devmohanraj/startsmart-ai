@@ -30,6 +30,9 @@ function isRetryableFailure(error) {
   // A cancelled request is a deliberate caller decision and must not be replayed.
   if (error.code === "ERR_CANCELED") return false;
 
+  // Caller can opt out of retries (e.g., POST to risk-analysis uses 8s poll loop instead).
+  if (error.config.__noRetry) return false;
+
   return !error.response || RETRYABLE_STATUSES.has(error.response.status);
 }
 
@@ -80,12 +83,12 @@ async function request(config, buildFallbackMessage = statusMessage) {
 export const authApi = {
   login: (credentials) =>
     request(
-      { method: "post", url: "/api/auth/login", data: credentials },
+      { method: "post", url: "/api/auth/login", data: credentials, timeout: 90000, __noRetry: true },
       () => "Authentication failed",
     ),
   signup: (formData) =>
     request(
-      { method: "post", url: "/api/auth/signup", data: formData },
+      { method: "post", url: "/api/auth/signup", data: formData, timeout: 90000, __noRetry: true },
       () => "Authentication failed",
     ),
 };
@@ -170,8 +173,11 @@ async function fetchOrGenerate(path, method) {
     const { data } = await api.request({
       method,
       url: path,
-      // POST generation waits on ML/Groq; GET of cached data stays bounded by the timeout.
-      timeout: method === "POST" ? 0 : undefined,
+      // POST: short timeout so fail-fast backend + 8s frontend polling can cycle.
+      // GET: bounded by default 30s timeout.
+      timeout: method === "POST" ? 15000 : undefined,
+      // Disable axios retries for POST; the 8s poll loop in RiskAssessment.jsx owns retries.
+      __noRetry: method === "POST",
     });
     return data;
   } catch (err) {
